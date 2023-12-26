@@ -295,7 +295,7 @@ impl CPU {
             ),
         );
 
-        // EOR:
+        // EOR(XOR): An exclusive OR is performed, bit by bit, on the accumulator contents using the contents of a byte of memory.
         op_map.insert(0x49, OpCode::new("EOR", 2, 2, AddressingMode::Immediate));
         op_map.insert(0x45, OpCode::new("EOR", 2, 3, AddressingMode::ZeroPage));
         op_map.insert(0x55, OpCode::new("EOR", 2, 4, AddressingMode::ZeroPage_X));
@@ -525,6 +525,78 @@ impl CPU {
             if self.op_map.contains_key(&code) {
                 let op = self.op_map[&code].clone();
                 // self.program_counter += (op.op_length - 1) as u16;
+                let mode = &op.mode;
+                match op.name.as_str() {
+                    "LDA" => {
+                        self.lda(&mode);
+                    }
+                    "LDX" => {
+                        self.ldx(&mode);
+                    }
+                    "LDY" => {
+                        self.ldy(&mode);
+                    }
+                    "STA" => {
+                        self.sta(&mode);
+                    }
+                    "STX" => {
+                        self.stx(&mode);
+                    }
+                    "STY" => {
+                        self.sty(&mode);
+                    }
+                    "ADC" => {
+                        self.adc(&mode);
+                    }
+                    "SBC" => {
+                        self.sbc(&mode);
+                    }
+                    "AND" => {
+                        self.and(&mode);
+                    }
+                    "ORA" => {
+                        self.ora(&mode);
+                    }
+                    "EOR" => {
+                        self.eor(&mode);
+                    }
+                    "ASL" => {
+                        self.asl(&mode);
+                    }
+                    "LSR" => {
+                        self.lsr(&mode);
+                    }
+                    "ROL" => {
+                        self.rol(&mode);
+                    }
+                    "ROR" => {
+                        self.ror(&mode);
+                    }
+                    "BIT" => {
+                        self.bit(&mode);
+                    }
+                    "CMP" => {
+                        self.cmp(&mode);
+                    }
+                    "CPX" => {
+                        self.cpx(&mode);
+                    }
+                    "CPY" => {
+                        self.cpy(&mode);
+                    }
+                    "DEC" => {
+                        self.dec(&mode);
+                    }
+                    "INC" => {
+                        self.inc(&mode);
+                    }
+                    "JMP" => {
+                        self.jmp(&mode);
+                    }
+                    _ => {
+                        panic!("internal error~");
+                    }
+                }
                 continue;
             }
             match code {
@@ -552,22 +624,144 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
 
-    fn tax(&mut self) {
-        self.register_x = self.register_a;
+    fn ldy(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_y = value;
         self.update_zero_and_negative_flags(self.register_x);
     }
 
-    fn inx(&mut self) {
-        let (result, overflowed) = self.register_x.overflowing_add(1);
-        self.register_x = result;
-        print!("{}", self.register_x);
-        self.update_zero_and_negative_flags(self.register_x);
+    fn sta(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_a);
+    }
 
+    fn stx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_x);
+    }
+
+    fn sty(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write(addr, self.register_y);
+    }
+
+    fn adc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.update_zero_and_negative_flags(self.register_a);
+
+        let (result, carry) = self.register_a.overflowing_add(value);
+        if carry {
+            self.status = self.status & 0b1111_1110;
+        } else {
+            self.status = self.status | 0b0000_0001;
+        }
+
+        let (_, overflowed) = (self.register_a as i8).overflowing_add(value as i8);
         if overflowed {
             self.status = self.status | 0b0100_0000;
         } else {
             self.status = self.status & 0b1011_1111;
         }
+        self.register_a = result;
+    }
+
+    fn sbc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.update_zero_and_negative_flags(self.register_a);
+
+        let (result, carry) = self.register_a.overflowing_sub(value);
+        if carry {
+            self.status = self.status | 0b0000_0001;
+        } else {
+            self.status = self.status & 0b1111_1110;
+        }
+
+        let (_, overflowed) = (self.register_a as i8).overflowing_sub(value as i8);
+        if overflowed {
+            self.status = self.status | 0b0100_0000;
+        } else {
+            self.status = self.status & 0b1011_1111;
+        }
+        self.register_a = result;
+    }
+
+    fn and(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+    }
+    fn ora(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+    }
+    fn eor(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+    }
+    fn asl(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+    }
+    fn lsr(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+    }
+    fn rol(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+    }
+    fn ror(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+    }
+    fn bit(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+    }
+    fn cmp(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+    }
+    fn cpx(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+    }
+    fn cpy(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+
+    }
+    fn dec(&mut self, mode: &AddressingMode) {
+        self.register_x = self.register_a;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+    fn inc(&mut self, mode: &AddressingMode) {
+        self.register_x = self.register_a;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+    fn jmp(&mut self, mode: &AddressingMode) {
+        self.register_x = self.register_a;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn tax(&mut self) {
+        self.register_x = self.register_a;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+    fn inx(&mut self) {
+        let (result, overflowed) = self.register_x.overflowing_add(1);
+        self.register_x = result;
+        self.update_zero_and_negative_flags(self.register_x);
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -636,7 +830,7 @@ impl CPU {
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 deref
             }
-            
+
             AddressingMode::Indirect => {
                 todo!();
             }
