@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+mod op_test;
 
 #[derive(Clone)]
 struct OpCode {
@@ -35,6 +36,81 @@ pub enum AddressingMode {
     Indirect_X,
     Indirect_Y,
     NoneAddressing,
+}
+
+#[derive(Debug, Clone, Copy)]
+#[allow(non_camel_case_types)]
+#[repr(u8)]
+enum StatusFlag {
+    Carry = 0b0000_0001,
+    Zero = 0b0000_0010,
+    Interrupt = 0b0000_0100,
+    DecimalMode = 0b0000_1000,
+    BreakCommand = 0b0001_0000,
+    Overflow = 0b0010_0000,
+    Negative = 0b0100_0000,
+    
+}
+impl StatusFlag {
+    fn reverse(&self) -> u8 {
+        return 0b1111_1111 ^ (*self as u8);
+    }
+
+    fn among(&self, status: u8) -> bool {
+        return status & (*self as u8) == (*self as u8);
+    }
+
+    fn add(&self, status: &mut u8) {
+        *status = *status | *self;
+    }
+    fn remove(&self, status: &mut u8) {
+        *status = *status & !(*self as u8);
+    }
+    fn or_get(&self, status: u8) -> u8 {
+        return status | *self;
+    }
+    fn and_get(&self, status: u8) -> u8 {
+        return status & *self;
+    }
+}
+
+use std::ops::BitAnd;
+impl BitAnd<u8> for StatusFlag {
+    type Output = u8;
+    fn bitand(self, rhs: u8) -> Self::Output {
+        (self as u8) & rhs
+    }
+}
+impl BitAnd<StatusFlag> for u8 {
+    type Output = u8;
+    fn bitand(self, rhs: StatusFlag) -> Self::Output {
+        self & (rhs as u8)
+    }
+}
+
+use std::ops::BitOr;
+impl BitOr<u8> for StatusFlag {
+    type Output = u8;
+    fn bitor(self, rhs: u8) -> Self::Output {
+        (self as u8) | rhs
+    }
+}
+impl BitOr<StatusFlag> for u8 {
+    type Output = u8;
+    fn bitor(self, rhs: StatusFlag) -> Self::Output {
+        self | (rhs as u8)
+    }
+}
+
+impl PartialEq<u8> for StatusFlag {
+    fn eq(&self, other: &u8) -> bool {
+        return *other == *self as u8;
+    }
+}
+impl PartialEq<StatusFlag> for u8 {
+    fn eq(&self, other: &StatusFlag) -> bool {
+        return *self == *other as u8;
+    }
 }
 
 impl OpCode {
@@ -330,10 +406,6 @@ impl CPU {
         );
 
         // ASL: This operation shifts all the bits of the accumulator or memory contents one bit left.
-        op_map.insert(
-            0x0a,
-            OpCode::new("ASL", 1, 2, AddressingMode::NoneAddressing),
-        );
         op_map.insert(0x06, OpCode::new("ASL", 2, 5, AddressingMode::ZeroPage));
         op_map.insert(0x16, OpCode::new("ASL", 2, 6, AddressingMode::ZeroPage_X));
         op_map.insert(0x0e, OpCode::new("ASL", 3, 6, AddressingMode::Absolute));
@@ -348,10 +420,6 @@ impl CPU {
         );
 
         // LSR: Each of the bits in A or M is shift one place to the right. The bit that was in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
-        op_map.insert(
-            0x4a,
-            OpCode::new("LSR", 1, 2, AddressingMode::NoneAddressing),
-        );
         op_map.insert(0x46, OpCode::new("LSR", 2, 5, AddressingMode::ZeroPage));
         op_map.insert(0x56, OpCode::new("LSR", 2, 6, AddressingMode::ZeroPage_X));
         op_map.insert(0x4e, OpCode::new("LSR", 3, 6, AddressingMode::Absolute));
@@ -368,7 +436,7 @@ impl CPU {
         // ROL: Move each of the bits in either A or M one place to the left. Bit 0 is filled with the current value of the carry flag whilst the old bit 7 becomes the new carry flag value.
         op_map.insert(
             0x2a,
-            OpCode::new("ROL", 1, 2, AddressingMode::NoneAddressing),
+            OpCode::new("ROL", 1, 2, AddressingMode::Accumulator),
         );
         op_map.insert(0x26, OpCode::new("ROL", 2, 5, AddressingMode::ZeroPage));
         op_map.insert(0x36, OpCode::new("ROL", 2, 6, AddressingMode::ZeroPage_X));
@@ -386,7 +454,7 @@ impl CPU {
         // ROR:
         op_map.insert(
             0x6a,
-            OpCode::new("ROR", 1, 2, AddressingMode::NoneAddressing),
+            OpCode::new("ROR", 1, 2, AddressingMode::Accumulator),
         );
         op_map.insert(0x66, OpCode::new("ROR", 2, 5, AddressingMode::ZeroPage));
         op_map.insert(0x76, OpCode::new("ROR", 2, 6, AddressingMode::ZeroPage_X));
@@ -465,7 +533,6 @@ impl CPU {
         op_map.insert(0x4c, OpCode::new("JMP", 3, 3, AddressingMode::Absolute));
         op_map.insert(0x6c, OpCode::new("JMP", 3, 5, AddressingMode::Indirect));
 
-        let mut op_map: HashMap<u8, OpCode> = HashMap::new();
         CPU {
             register_a: 0,
             register_x: 0,
@@ -594,14 +661,21 @@ impl CPU {
                         self.jmp(&mode);
                     }
                     _ => {
-                        panic!("internal error~");
+                        panic!("Internal error in op_map match~");
                     }
                 }
+                self.program_counter += (op.op_length - 1) as u16;
                 continue;
             }
+
+            // single address mode
             match code {
                 0xE8 => self.inx(),
                 0xAA => self.tax(),
+                0x38 => self.sec(),
+                0x18 => self.clc(),
+                0x0a => self.asl_accumulate(),
+                0x4a => self.lsr_accumulate(),
                 0x00 => {
                     return;
                 }
@@ -649,68 +723,113 @@ impl CPU {
     fn adc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-        self.update_zero_and_negative_flags(self.register_a);
 
         let (result, carry) = self.register_a.overflowing_add(value);
         if carry {
-            self.status = self.status & 0b1111_1110;
+            self.status = self.status | StatusFlag::Carry;
         } else {
-            self.status = self.status | 0b0000_0001;
+            self.status = self.status & StatusFlag::Carry.reverse();
         }
 
         let (_, overflowed) = (self.register_a as i8).overflowing_add(value as i8);
         if overflowed {
-            self.status = self.status | 0b0100_0000;
+            self.status = self.status | StatusFlag::Overflow;
         } else {
-            self.status = self.status & 0b1011_1111;
+            self.status = self.status & StatusFlag::Overflow.reverse();
         }
         self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn sbc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-        self.update_zero_and_negative_flags(self.register_a);
 
         let (result, carry) = self.register_a.overflowing_sub(value);
         if carry {
-            self.status = self.status | 0b0000_0001;
+            self.status = self.status & StatusFlag::Carry.reverse();
         } else {
-            self.status = self.status & 0b1111_1110;
+            self.status = self.status | StatusFlag::Carry;
         }
 
         let (_, overflowed) = (self.register_a as i8).overflowing_sub(value as i8);
         if overflowed {
-            self.status = self.status | 0b0100_0000;
+            self.status = self.status | StatusFlag::Overflow;
         } else {
-            self.status = self.status & 0b1011_1111;
+            self.status = self.status & StatusFlag::Overflow.reverse();
         }
         self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn and(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-
+        let result = self.register_a & value;
+        self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
     }
+
     fn ora(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-
+        let result = self.register_a | value;
+        self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
     }
+
     fn eor(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-
+        let result = self.register_a ^ value;
+        self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
     }
+
     fn asl(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
+        let (result, carry) = value.overflowing_shl(1);
+        if carry {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        self.mem_write(addr, result);
     }
+
+    fn asl_accumulate(&mut self){
+        let (result, carry) = self.register_a.overflowing_shl(1);
+        if carry {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        self.register_a = result;
+    }
+
     fn lsr(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
+        let (result, carry) = value.overflowing_shr(1);
+        if carry {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        self.mem_write(addr, result);
     }
+
+    fn lsr_accumulate(&mut self){
+        let (result, carry) = self.register_a.overflowing_shr(1);
+        if carry {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        self.register_a = result;
+    }
+
     fn rol(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
@@ -764,17 +883,28 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_x);
     }
 
+    // set the carry flag to one.
+    fn sec(&mut self) {
+        StatusFlag::Carry.add(&mut self.status);
+    }
+
+    // set the carry flag to zero.
+    fn clc(&mut self) {
+        StatusFlag::Carry.remove(&mut self.status);
+    }
+
+
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         if result == 0 {
-            self.status = self.status | 0b0000_0010;
+            self.status = self.status | StatusFlag::Zero;
         } else {
-            self.status = self.status & 0b1111_1101;
+            self.status = self.status & StatusFlag::Zero.reverse();
         }
 
         if result & 0b1000_0000 != 0 {
-            self.status = self.status | 0b1000_0000;
+            self.status = self.status | StatusFlag::Negative;
         } else {
-            self.status = self.status & 0b0111_1111;
+            self.status = self.status & StatusFlag::Negative.reverse();
         }
     }
 
@@ -838,51 +968,5 @@ impl CPU {
                 panic!("mode {:?} is not supported", mode);
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_0xa9_lda_immediate_load_data() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
-        assert_eq!(cpu.register_a, 0x05);
-        assert!(cpu.status & 0b0000_0010 == 0b00);
-        assert!(cpu.status & 0b1000_0000 == 0);
-    }
-
-    #[test]
-    fn test_0xa9_lda_zero_flag() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
-        assert!(cpu.status & 0b0000_0010 == 0b10);
-    }
-
-    #[test]
-    fn test_0xe8_inx_increment_x_register() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xe8, 0x00]);
-        assert_eq!(cpu.register_x, 0x1);
-        assert!(cpu.status & 0b0000_0010 == 0x0);
-        assert!(cpu.status & 0b1000_0010 == 0x0);
-    }
-
-    #[test]
-    fn test_5_ops_working_together() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
-
-        assert_eq!(cpu.register_x, 0xc1)
-    }
-
-    #[test]
-    fn test_inx_overflow() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa2, 0xff, 0xe8, 0xe8, 0x00]);
-
-        assert_eq!(cpu.register_x, 1)
     }
 }
