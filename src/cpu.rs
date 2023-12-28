@@ -22,7 +22,7 @@ pub struct CPU {
     op_map: HashMap<u8, OpCode>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Immediate,
@@ -527,6 +527,15 @@ impl CPU {
         op_map.insert(0x4c, OpCode::new("JMP", 3, 3, AddressingMode::Absolute));
         op_map.insert(0x6c, OpCode::new("JMP", 3, 5, AddressingMode::Indirect));
 
+        // BCC: If the carry flag is clear then add the relative displacement to the program counter to cause a branch to a new location.
+        op_map.insert(0x90, OpCode::new("BCC", 2, 2, AddressingMode::Immediate));
+
+        // BCS: If the carry flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+        op_map.insert(0xb0, OpCode::new("BCS", 2, 2, AddressingMode::Immediate));
+
+        // BEQ: If the zero flag is set then add the relative displacement to the program counter to cause a branch to a new location.
+        op_map.insert(0xf0, OpCode::new("BEQ", 2, 2, AddressingMode::Immediate));
+
         CPU {
             register_a: 0,
             register_x: 0,
@@ -654,11 +663,31 @@ impl CPU {
                     "JMP" => {
                         self.jmp(&mode);
                     }
+                    "BCC" => {
+                        self.bcc(&mode);
+                    }
+                    "BCS" => {
+                        self.bcs(&mode);
+                    }
+                    "BEQ" => {
+                        self.beq(&mode);
+                    }
+                    "BMI" => {
+                        self.bmi(&mode);
+                    }
+                    "BNE" => {
+                        self.bne(&mode);
+                    }
+                    "BPL" => {
+                        self.bpl(&mode);
+                    }
                     _ => {
                         panic!("Internal error in op_map match~");
                     }
                 }
-                self.program_counter += (op.op_length - 1) as u16;
+                if op.name != "JMP" {
+                    self.program_counter += (op.op_length - 1) as u16;
+                }
                 continue;
             }
 
@@ -666,6 +695,7 @@ impl CPU {
             match code {
                 0xE8 => self.inx(),
                 0xAA => self.tax(),
+                0xA8 => self.tay(),
                 0x38 => self.sec(),
                 0x18 => self.clc(),
                 0x0a => self.asl_accumulate(),
@@ -812,6 +842,54 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    fn bcc(&mut self, mode: &AddressingMode) {
+        if !StatusFlag::Carry.among(self.status) {
+            let addr = self.get_operand_address(&mode);
+            let value = self.mem_read(addr);
+            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+        }
+    }
+
+    fn bcs(&mut self, mode: &AddressingMode) {
+        if StatusFlag::Carry.among(self.status) {
+            let addr = self.get_operand_address(&mode);
+            let value = self.mem_read(addr);
+            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+        }
+    }
+
+    fn beq(&mut self, mode: &AddressingMode) {
+        if StatusFlag::Zero.among(self.status) {
+            let addr = self.get_operand_address(&mode);
+            let value = self.mem_read(addr);
+            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+        }
+    }
+
+    fn bne(&mut self, mode: &AddressingMode) {
+        if !StatusFlag::Zero.among(self.status) {
+            let addr = self.get_operand_address(&mode);
+            let value = self.mem_read(addr);
+            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+        }
+    }
+
+    fn bmi(&mut self, mode: &AddressingMode) {
+        if StatusFlag::Negative.among(self.status) {
+            let addr = self.get_operand_address(&mode);
+            let value = self.mem_read(addr);
+            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+        }
+    }
+
+    fn bpl(&mut self, mode: &AddressingMode) {
+        if !StatusFlag::Negative.among(self.status) {
+            let addr = self.get_operand_address(&mode);
+            let value = self.mem_read(addr);
+            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+        }
+    }
+
     fn lsr(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
@@ -927,7 +1005,7 @@ impl CPU {
         } else {
             StatusFlag::Overflow.remove(&mut self.status);
         }
-        
+
         if value & self.register_a == 0 {
             StatusFlag::Zero.add(&mut self.status);
         } else {
@@ -1002,13 +1080,25 @@ impl CPU {
     }
 
     fn jmp(&mut self, mode: &AddressingMode) {
-        self.update_zero_and_negative_flags(self.register_x);
+        let addr = self.get_operand_address(mode);
+        if *mode == AddressingMode::Absolute {
+            self.program_counter = addr;
+        } else {
+            assert!(*mode == AddressingMode::Indirect);
+            self.program_counter = self.mem_read_u16(addr);
+        }
     }
 
     fn tax(&mut self) {
         self.register_x = self.register_a;
         self.update_zero_and_negative_flags(self.register_x);
     }
+
+    fn tay(&mut self) {
+        self.register_y = self.register_a;
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
     fn inx(&mut self) {
         let (result, overflowed) = self.register_x.overflowing_add(1);
         self.register_x = result;

@@ -281,3 +281,16 @@ fn test_inc() {
     assert!(!StatusFlag::Negative.among(cpu.status));
     assert!(!StatusFlag::Zero.among(cpu.status));
 }
+
+#[test]
+fn test_jmp() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![0x4c, 0x03, 0x80, 0x00]);
+    
+    // todo: indirect
+}
+
+#[test]
+fn test_bcc() {
+    // todo:
+}
