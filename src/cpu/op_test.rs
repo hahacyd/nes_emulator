@@ -50,6 +50,13 @@ fn test_adc() {
 }
 
 #[test]
+fn test_adc_0x80() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![0x69, 0x80, 0x00]);
+    assert_eq!(cpu.register_a, 0x80);
+}
+
+#[test]
 fn test_adc_overflow_and_carry() {
     let mut cpu = CPU::new();
     // test carry
@@ -124,6 +131,7 @@ fn test_asl_with_carry() {
     assert_eq!(cpu.register_a, 0);
     assert!(StatusFlag::Carry.among(cpu.status));
     assert!(StatusFlag::Zero.among(cpu.status));
+    assert!(!StatusFlag::Negative.among(cpu.status));
 }
 
 #[test]
@@ -148,10 +156,14 @@ fn test_rol() {
     cpu.load_and_run(vec![0x69, 0x80, 0x38, /* set carry flag */ 0x2a, 0x00]);
     assert_eq!(cpu.register_a, 1);
     assert!(StatusFlag::Carry.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+    assert!(!StatusFlag::Negative.among(cpu.status));
 
     cpu.load_and_run(vec![0x69, 0x80, 0x18, /* remove carry flag */ 0x2a, 0x00]);
     assert_eq!(cpu.register_a, 0);
     assert!(StatusFlag::Carry.among(cpu.status));
+    assert!(StatusFlag::Zero.among(cpu.status));
+    assert!(!StatusFlag::Negative.among(cpu.status));
 }
 
 #[test]
@@ -160,8 +172,12 @@ fn test_ror() {
     cpu.load_and_run(vec![0x69, 0x1, 0x38, /* set carry flag */ 0x6a, 0x00]);
     assert_eq!(cpu.register_a, 0x80);
     assert!(StatusFlag::Carry.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+    assert!(StatusFlag::Negative.among(cpu.status));
 
     cpu.load_and_run(vec![0x69, 0x1, 0x18, /* set carry flag */ 0x6a, 0x00]);
     assert_eq!(cpu.register_a, 0x0);
     assert!(StatusFlag::Carry.among(cpu.status));
+    assert!(StatusFlag::Zero.among(cpu.status));
+    assert!(!StatusFlag::Negative.among(cpu.status));
 }

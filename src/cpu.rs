@@ -66,6 +66,9 @@ impl StatusFlag {
     fn remove(&self, status: &mut u8) {
         *status = *status & !(*self as u8);
     }
+    fn test(&self, status: u8) -> bool {
+        return *self & status == *self;
+    }
     fn or_get(&self, status: u8) -> u8 {
         return status | *self;
     }
@@ -434,10 +437,6 @@ impl CPU {
         );
 
         // ROL: Move each of the bits in either A or M one place to the left. Bit 0 is filled with the current value of the carry flag whilst the old bit 7 becomes the new carry flag value.
-        op_map.insert(
-            0x2a,
-            OpCode::new("ROL", 1, 2, AddressingMode::Accumulator),
-        );
         op_map.insert(0x26, OpCode::new("ROL", 2, 5, AddressingMode::ZeroPage));
         op_map.insert(0x36, OpCode::new("ROL", 2, 6, AddressingMode::ZeroPage_X));
         op_map.insert(0x2e, OpCode::new("ROL", 3, 6, AddressingMode::Absolute));
@@ -452,10 +451,6 @@ impl CPU {
         );
 
         // ROR:
-        op_map.insert(
-            0x6a,
-            OpCode::new("ROR", 1, 2, AddressingMode::Accumulator),
-        );
         op_map.insert(0x66, OpCode::new("ROR", 2, 5, AddressingMode::ZeroPage));
         op_map.insert(0x76, OpCode::new("ROR", 2, 6, AddressingMode::ZeroPage_X));
         op_map.insert(0x6e, OpCode::new("ROR", 3, 6, AddressingMode::Absolute));
@@ -676,6 +671,8 @@ impl CPU {
                 0x18 => self.clc(),
                 0x0a => self.asl_accumulate(),
                 0x4a => self.lsr_accumulate(),
+                0x2a => self.rol_accumulate(),
+                0x6a => self.ror_accumulate(),
                 0x00 => {
                     return;
                 }
@@ -789,57 +786,133 @@ impl CPU {
     fn asl(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-        let (result, carry) = value.overflowing_shl(1);
+
+        let carry:bool = (value & 0x80) > 0;
+        let result = value << 1;
+
         if carry {
             StatusFlag::Carry.add(&mut self.status);
         } else {
             StatusFlag::Carry.remove(&mut self.status);
         }
         self.mem_write(addr, result);
+        self.update_zero_and_negative_flags(result);
     }
 
     fn asl_accumulate(&mut self){
-        let (result, carry) = self.register_a.overflowing_shl(1);
+        let carry:bool = (self.register_a & 0x80) > 0;
+        let result = self.register_a << 1;
+
         if carry {
             StatusFlag::Carry.add(&mut self.status);
         } else {
             StatusFlag::Carry.remove(&mut self.status);
         }
+
         self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn lsr(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-        let (result, carry) = value.overflowing_shr(1);
+
+
+        let carry:bool = (value & 0x1u8) > 0;
+        let result = value >> 1;
+
         if carry {
             StatusFlag::Carry.add(&mut self.status);
         } else {
             StatusFlag::Carry.remove(&mut self.status);
         }
         self.mem_write(addr, result);
+        self.update_zero_and_negative_flags(result);
     }
 
     fn lsr_accumulate(&mut self){
-        let (result, carry) = self.register_a.overflowing_shr(1);
+        let carry:bool = (self.register_a & 0x1u8) > 0;
+        let result = self.register_a >> 1;
+
         if carry {
             StatusFlag::Carry.add(&mut self.status);
         } else {
             StatusFlag::Carry.remove(&mut self.status);
         }
         self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
     }
 
     fn rol(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
+        let carry:bool = (value & 0x80) > 0;
+        let mut result = value << 1;
+
+        if StatusFlag::Carry.test(self.status) {
+            result |= 1u8;
+        }
+        if carry {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        self.mem_write(addr, result);
+        self.update_zero_and_negative_flags(result);
     }
+
+    fn rol_accumulate(&mut self){
+        let carry:bool = (self.register_a & 0x80) > 0;
+        let mut result = self.register_a << 1;
+
+
+        if StatusFlag::Carry.test(self.status) {
+            result |= 1u8;
+        }
+        if carry {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     fn ror(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
+        let carry:bool = (value & 0x1) > 0;
+        let mut result = value >> 1;
+
+        if StatusFlag::Carry.test(self.status) {
+            result |= 0x80u8;
+        }
+        if carry {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        self.mem_write(addr, result);
+        self.update_zero_and_negative_flags(result);
     }
+
+    fn ror_accumulate(&mut self){
+        let carry:bool = (self.register_a & 0x1) > 0;
+        let mut result = self.register_a >> 1;
+        if StatusFlag::Carry.test(self.status) {
+            result |= 0x80u8;
+        }
+        if carry {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        self.register_a = result;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     fn bit(&mut self, mode: &AddressingMode){
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
