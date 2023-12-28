@@ -698,7 +698,7 @@ impl CPU {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
         self.register_y = value;
-        self.update_zero_and_negative_flags(self.register_x);
+        self.update_zero_and_negative_flags(self.register_y);
     }
 
     fn sta(&mut self, mode: &AddressingMode) {
@@ -946,17 +946,43 @@ impl CPU {
         }
         if self.register_a == value {
             StatusFlag::Zero.add(&mut self.status);
+        } else {
+            StatusFlag::Zero.remove(&mut self.status);
         }
     }
 
     fn cpx(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
+
+        if self.register_x >= value {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        if self.register_x == value {
+            StatusFlag::Zero.add(&mut self.status);
+        } else {
+            StatusFlag::Zero.remove(&mut self.status);
+        }
     }
+
     fn cpy(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
+
+        if self.register_y >= value {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        if self.register_y == value {
+            StatusFlag::Zero.add(&mut self.status);
+        } else {
+            StatusFlag::Zero.remove(&mut self.status);
+        }
     }
+
     fn dec(&mut self, mode: &AddressingMode) {
         self.register_x = self.register_a;
         self.update_zero_and_negative_flags(self.register_x);
@@ -1069,6 +1095,9 @@ impl CPU {
 pub const LDA_IMMEDIATE: u8 = 0xa9u8;
 pub const LDA_ZEROPAGE: u8 = 0xa5u8;
 pub const LDA_ABSOLUTE: u8 = 0xadu8;
+
+pub const LDX_IMMEDIATE: u8 = 0xa2u8;
+pub const LDY_IMMEDIATE: u8 = 0xa0u8;
 
 pub const STA_ZEROPAGE: u8 = 0x85u8;
 pub const STA_ABSOLUTE: u8 = 0x8du8;

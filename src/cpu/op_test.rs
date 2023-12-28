@@ -211,3 +211,35 @@ fn test_cmp() {
     assert!(!StatusFlag::Carry.among(cpu.status));
     assert!(!StatusFlag::Zero.among(cpu.status));
 }
+
+#[test]
+fn test_cpx() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 2, 0xe0, 1, 0x00]);
+    assert!(StatusFlag::Carry.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 2, 0xe0, 2, 0x00]);
+    assert!(StatusFlag::Carry.among(cpu.status));
+    assert!(StatusFlag::Zero.among(cpu.status));
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 1, 0xe0, 2, 0x00]);
+    assert!(!StatusFlag::Carry.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+}
+
+#[test]
+fn test_cpy() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 2, 0xc0, 1, 0x00]);
+    assert!(StatusFlag::Carry.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 2, 0xc0, 2, 0x00]);
+    assert!(StatusFlag::Carry.among(cpu.status));
+    assert!(StatusFlag::Zero.among(cpu.status));
+
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 1, 0xc0, 2, 0x00]);
+    assert!(!StatusFlag::Carry.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+}
