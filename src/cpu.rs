@@ -984,15 +984,24 @@ impl CPU {
     }
 
     fn dec(&mut self, mode: &AddressingMode) {
-        self.register_x = self.register_a;
-        self.update_zero_and_negative_flags(self.register_x);
+        let addr = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+        // todo: should `as i8` ?
+        value = ((value as i8) - 1) as u8;
+        self.mem_write(addr, value);
+        self.update_zero_and_negative_flags(value);
     }
+
     fn inc(&mut self, mode: &AddressingMode) {
-        self.register_x = self.register_a;
-        self.update_zero_and_negative_flags(self.register_x);
+        let addr = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+        // todo: should `as i8` ?
+        value = ((value as i8) + 1) as u8;
+        self.mem_write(addr, value);
+        self.update_zero_and_negative_flags(value);
     }
+
     fn jmp(&mut self, mode: &AddressingMode) {
-        self.register_x = self.register_a;
         self.update_zero_and_negative_flags(self.register_x);
     }
 
