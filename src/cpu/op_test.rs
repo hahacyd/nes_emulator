@@ -181,3 +181,33 @@ fn test_ror() {
     assert!(StatusFlag::Zero.among(cpu.status));
     assert!(!StatusFlag::Negative.among(cpu.status));
 }
+
+#[test]
+fn test_bit() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 0xc0, STA_ZEROPAGE, 0x00, LDA_IMMEDIATE, 0x3, 0x24 /* bit */, 0x00, 0x00]);
+    assert!(StatusFlag::Zero.among(cpu.status));
+    assert!(StatusFlag::Negative.among(cpu.status));
+    assert!(StatusFlag::Negative.among(cpu.status));
+
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 0xc0, STA_ZEROPAGE, 0x00, LDA_IMMEDIATE, 0x83, 0x24 /* bit */, 0x00, 0x00]);
+    assert!(!StatusFlag::Zero.among(cpu.status));
+    assert!(StatusFlag::Negative.among(cpu.status));
+    assert!(StatusFlag::Negative.among(cpu.status));
+}
+
+#[test]
+fn test_cmp() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 2, 0xc9, 1, 0x00]);
+    assert!(StatusFlag::Carry.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 2, 0xc9, 2, 0x00]);
+    assert!(StatusFlag::Carry.among(cpu.status));
+    assert!(StatusFlag::Zero.among(cpu.status));
+
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 1, 0xc9, 2, 0x00]);
+    assert!(!StatusFlag::Carry.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+}
