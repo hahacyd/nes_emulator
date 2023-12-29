@@ -551,11 +551,11 @@ impl CPU {
         }
     }
 
-    fn mem_read(&self, addr: u16) -> u8 {
+    pub fn mem_read(&self, addr: u16) -> u8 {
         self.memory[addr as usize]
     }
 
-    fn mem_write(&mut self, addr: u16, data: u8) {
+    pub fn mem_write(&mut self, addr: u16, data: u8) {
         self.memory[addr as usize] = data
     }
 
@@ -565,13 +565,13 @@ impl CPU {
         self.run();
     }
 
-    fn mem_read_u16(&mut self, pos: u16) -> u16 {
+    pub fn mem_read_u16(&mut self, pos: u16) -> u16 {
         let lo = self.mem_read(pos) as u16;
         let hi = self.mem_read(pos + 1) as u16;
         (hi << 8) | (lo as u16)
     }
 
-    fn mem_write_u16(&mut self, pos: u16, data: u16) {
+    pub fn mem_write_u16(&mut self, pos: u16, data: u16) {
         let hi = (data >> 8) as u8;
         let lo = (data & 0xff) as u8;
         self.mem_write(pos, lo);
@@ -588,13 +588,23 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
+        // normal address
+        // self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
+
+
+        // greedy snake
+        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program[..]);
         // set where address the program start
-        self.mem_write_u16(0xFFFC, 0x8000);
+        self.mem_write_u16(0xFFFC, 0x0600);
     }
 
     pub fn run(&mut self) {
+        self.run_with_callbacks(|_|{});
+    }
+
+    pub fn run_with_callbacks<F>(&mut self, mut callback: F) where F: FnMut(&mut CPU) {
         loop {
+            callback(self);
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
             if self.op_map.contains_key(&code) {
@@ -723,10 +733,14 @@ impl CPU {
                 op::PLA => self.pla(),
                 op::PLP => self.plp(),
                 op::RTI => self.rti(),
+                op::JSR => self.jsr(),
                 0x00 => {
                     return;
                 }
-                _ => todo!(),
+                _ => {
+                    println!("{:x}", code);
+                    todo!()
+                }
             }
             /*if code != op::JSR && code != op::RTI {
                 self.program_counter += 1;
