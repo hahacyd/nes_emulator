@@ -770,10 +770,7 @@ impl CPU {
         self.mem_write(addr, self.register_y);
     }
 
-    fn adc(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
-        let value = self.mem_read(addr);
-
+    fn add_rega_and_value(&mut self, value: u8) {
         let (result, carry) = self.register_a.overflowing_add(value);
         if carry {
             StatusFlag::Carry.add(&mut self.status);
@@ -791,6 +788,19 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    fn adc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.add_rega_and_value(value);
+    }
+
+    fn sbc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.add_rega_and_value(!value + 1);
+    }
+
+    /*
     fn sbc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
@@ -810,7 +820,7 @@ impl CPU {
         }
         self.register_a = result;
         self.update_zero_and_negative_flags(self.register_a);
-    }
+    }*/
 
     fn and(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
@@ -1135,7 +1145,9 @@ impl CPU {
     }
 
     fn php(&mut self) {
-        self.push(self.status);
+        let mut status = self.status;
+        StatusFlag::BreakCommand.add(&mut status);
+        self.push(status);
     }
 
     fn pla(&mut self) {
@@ -1257,7 +1269,10 @@ impl CPU {
         self.program_counter = value;
 
         StatusFlag::BreakCommand.add(&mut self.status);
-        StatusFlag::DecimalMode.remove(&mut self.status);
+
+        // side effect
+        StatusFlag::Interrupt.add(&mut self.status);
+        // StatusFlag::DecimalMode.remove(&mut self.status);
     }
 
     fn push_u16(&mut self, value: u16) {
