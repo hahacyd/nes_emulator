@@ -776,16 +776,16 @@ impl CPU {
 
         let (result, carry) = self.register_a.overflowing_add(value);
         if carry {
-            self.status = self.status | StatusFlag::Carry;
+            StatusFlag::Carry.add(&mut self.status);
         } else {
-            self.status = self.status & StatusFlag::Carry.reverse();
+            StatusFlag::Carry.remove(&mut self.status);
         }
 
         let (_, overflowed) = (self.register_a as i8).overflowing_add(value as i8);
         if overflowed {
-            self.status = self.status | StatusFlag::Overflow;
+            StatusFlag::Overflow.add(&mut self.status);
         } else {
-            self.status = self.status & StatusFlag::Overflow.reverse();
+            StatusFlag::Overflow.remove(&mut self.status);
         }
         self.register_a = result;
         self.update_zero_and_negative_flags(self.register_a);
@@ -1164,13 +1164,13 @@ impl CPU {
     }
 
     fn inx(&mut self) {
-        let (result, overflowed) = self.register_x.overflowing_add(1);
+        let (result, _) = self.register_x.overflowing_add(1);
         self.register_x = result;
         self.update_zero_and_negative_flags(self.register_x);
     }
 
     fn iny(&mut self) {
-        let (result, overflowed) = self.register_y.overflowing_add(1);
+        let (result, _) = self.register_y.overflowing_add(1);
         self.register_y = result;
         self.update_zero_and_negative_flags(self.register_y);
     }
@@ -1207,7 +1207,7 @@ impl CPU {
     }
 
     fn txa(&mut self) {
-        self.register_x = self.register_x;
+        self.register_a = self.register_x;
         self.update_zero_and_negative_flags(self.register_a);
     }
 

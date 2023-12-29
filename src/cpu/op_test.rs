@@ -404,6 +404,25 @@ fn test_tax() {
 }
 
 #[test]
+fn test_txa() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0x1, op::TXA, 0x00]);
+    assert_eq!(cpu.register_a, 1);
+    assert!(!cpu.negative());
+    assert!(!cpu.zero());
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0x0, op::TXA,0x00]);
+    assert_eq!(cpu.register_a, 0);
+    assert!(!cpu.negative());
+    assert!(cpu.zero());
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0xff, op::TXA,0x00]);
+    assert_eq!(cpu.register_a, 0xff);
+    assert!(cpu.negative());
+    assert!(!cpu.zero());
+}
+
+#[test]
 fn test_tay() {
     let mut cpu = CPU::new();
     cpu.load_and_run(vec![LDA_IMMEDIATE, 0x1, op::TAY,0x00]);
@@ -418,6 +437,63 @@ fn test_tay() {
 
     cpu.load_and_run(vec![LDA_IMMEDIATE, 0xff, op::TAY,0x00]);
     assert_eq!(cpu.register_y, 0xff);
+    assert!(cpu.negative());
+    assert!(!cpu.zero());
+}
+
+#[test]
+fn test_tya() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 0x1, op::TYA,0x00]);
+    assert_eq!(cpu.register_a, 1);
+    assert!(!cpu.negative());
+    assert!(!cpu.zero());
+
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 0x0, op::TYA,0x00]);
+    assert_eq!(cpu.register_a, 0);
+    assert!(!cpu.negative());
+    assert!(cpu.zero());
+
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 0xff, op::TYA,0x00]);
+    assert_eq!(cpu.register_a, 0xff);
+    assert!(cpu.negative());
+    assert!(!cpu.zero());
+}
+
+#[test]
+fn test_txs() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0x1, op::TXS, 0x00]);
+    assert_eq!(cpu.stack_counter, 1);
+    assert!(!cpu.negative());
+    assert!(!cpu.zero());
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0x0, op::TXS, 0x00]);
+    assert_eq!(cpu.stack_counter, 0);
+    assert!(!cpu.negative());
+    assert!(cpu.zero());
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0xff, op::TXS, 0x00]);
+    assert_eq!(cpu.stack_counter, 0xff);
+    assert!(cpu.negative());
+    assert!(!cpu.zero());
+}
+
+#[test]
+fn test_tsx() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0x1, op::TXS, op::TSX, 0x00]);
+    assert_eq!(cpu.register_x, 1);
+    assert!(!cpu.negative());
+    assert!(!cpu.zero());
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0x0, op::TXS, op::TSX, 0x00]);
+    assert_eq!(cpu.register_x, 0);
+    assert!(!cpu.negative());
+    assert!(cpu.zero());
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0xff, op::TXS, op::TSX, 0x00]);
+    assert_eq!(cpu.register_x, 0xff);
     assert!(cpu.negative());
     assert!(!cpu.zero());
 }
