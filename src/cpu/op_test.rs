@@ -35,11 +35,41 @@ fn test_5_ops_working_together() {
 }
 
 #[test]
-fn test_inx_overflow() {
+fn test_inx() {
     let mut cpu = CPU::new();
-    cpu.load_and_run(vec![0xa2, 0xff, 0xe8, 0xe8, 0x00]);
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0xfe, op::INX, 0x00]);
+    assert_eq!(cpu.register_x, 0xff);
+    assert!(cpu.negative());
+    assert!(!cpu.zero());
 
-    assert_eq!(cpu.register_x, 1)
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0xff, op::INX, 0x00]);
+    assert_eq!(cpu.register_x, 0x0);
+    assert!(!cpu.negative());
+    assert!(cpu.zero());
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0x0, op::INX, 0x00]);
+    assert_eq!(cpu.register_x, 0x1);
+    assert!(!cpu.negative());
+    assert!(!cpu.zero());
+}
+
+#[test]
+fn test_iny() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 0xfe, op::INY, 0x00]);
+    assert_eq!(cpu.register_y, 0xff);
+    assert!(cpu.negative());
+    assert!(!cpu.zero());
+
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 0xff, op::INY, 0x00]);
+    assert_eq!(cpu.register_y, 0x0);
+    assert!(!cpu.negative());
+    assert!(cpu.zero());
+
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 0x0, op::INY, 0x00]);
+    assert_eq!(cpu.register_y, 0x1);
+    assert!(!cpu.negative());
+    assert!(!cpu.zero());
 }
 
 #[test]
@@ -294,3 +324,123 @@ fn test_jmp() {
 fn test_bcc() {
     // todo:
 }
+
+#[test]
+fn test_dex() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 2, op::DEX, 0x00]);
+    assert_eq!(cpu.register_x, 1);
+    assert!(!StatusFlag::Negative.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 1, op::DEX, 0x00]);
+    assert_eq!(cpu.register_x, 0);
+    assert!(!StatusFlag::Negative.among(cpu.status));
+    assert!(StatusFlag::Zero.among(cpu.status));
+
+    cpu.load_and_run(vec![LDX_IMMEDIATE, 0, op::DEX, 0x00]);
+    assert_eq!(cpu.register_x, 0xff);
+    assert!(StatusFlag::Negative.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+}
+
+#[test]
+fn test_dey() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 2, op::DEY, 0x00]);
+    assert_eq!(cpu.register_y, 1);
+    assert!(!StatusFlag::Negative.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 1, op::DEY, 0x00]);
+    assert_eq!(cpu.register_y, 0);
+    assert!(!StatusFlag::Negative.among(cpu.status));
+    assert!(StatusFlag::Zero.among(cpu.status));
+
+    cpu.load_and_run(vec![LDY_IMMEDIATE, 0, op::DEY, 0x00]);
+    assert_eq!(cpu.register_y, 0xff);
+    assert!(StatusFlag::Negative.among(cpu.status));
+    assert!(!StatusFlag::Zero.among(cpu.status));
+}
+
+#[test]
+fn test_cld() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![op::CLD, 0x00]);
+    assert!(!StatusFlag::DecimalMode.among(cpu.status));
+}
+
+#[test]
+fn test_cli() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![op::CLI, 0x00]);
+    assert!(!StatusFlag::Interrupt.among(cpu.status));
+}
+
+#[test]
+fn test_clv() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![op::CLV, 0x00]);
+    assert!(!StatusFlag::Overflow.among(cpu.status));
+}
+
+#[test]
+fn test_tax() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 0x1, op::TAX,0x00]);
+    assert_eq!(cpu.register_x, 1);
+    assert!(!cpu.negative());
+    assert!(!cpu.zero());
+
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 0x0, op::TAX,0x00]);
+    assert_eq!(cpu.register_x, 0);
+    assert!(!cpu.negative());
+    assert!(cpu.zero());
+
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 0xff, op::TAX,0x00]);
+    assert_eq!(cpu.register_x, 0xff);
+    assert!(cpu.negative());
+    assert!(!cpu.zero());
+}
+
+#[test]
+fn test_tay() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 0x1, op::TAY,0x00]);
+    assert_eq!(cpu.register_y, 1);
+    assert!(!cpu.negative());
+    assert!(!cpu.zero());
+
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 0x0, op::TAY,0x00]);
+    assert_eq!(cpu.register_y, 0);
+    assert!(!cpu.negative());
+    assert!(cpu.zero());
+
+    cpu.load_and_run(vec![LDA_IMMEDIATE, 0xff, op::TAY,0x00]);
+    assert_eq!(cpu.register_y, 0xff);
+    assert!(cpu.negative());
+    assert!(!cpu.zero());
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

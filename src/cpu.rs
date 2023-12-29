@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 mod op_test;
+mod op;
 
 #[derive(Clone)]
 struct OpCode {
@@ -17,6 +18,7 @@ pub struct CPU {
     pub register_y: u8,
     pub status: u8,
     pub program_counter: u16,
+    pub stack_counter: u8,
     memory: [u8; 0xFFFF],
 
     op_map: HashMap<u8, OpCode>,
@@ -50,6 +52,7 @@ enum StatusFlag {
     Overflow = 0b0010_0000,
     Negative = 0b0100_0000,
 }
+
 impl StatusFlag {
     fn reverse(&self) -> u8 {
         return 0b1111_1111 ^ (*self as u8);
@@ -542,6 +545,7 @@ impl CPU {
             register_y: 0,
             status: 0,
             program_counter: 0,
+            stack_counter: 0,
             memory: [0u8; 0xFFFF],
             op_map,
         }
@@ -579,6 +583,8 @@ impl CPU {
         self.register_x = 0;
         self.status = 0;
         self.program_counter = self.mem_read_u16(0xFFFC);
+        /* [0x0100 .. 0x1ff] */
+        self.stack_counter = 0xff;
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
@@ -591,7 +597,6 @@ impl CPU {
         loop {
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
-
             if self.op_map.contains_key(&code) {
                 let op = self.op_map[&code].clone();
                 // self.program_counter += (op.op_length - 1) as u16;
@@ -693,20 +698,39 @@ impl CPU {
 
             // single address mode
             match code {
-                0xE8 => self.inx(),
-                0xAA => self.tax(),
-                0xA8 => self.tay(),
+                op::TAX => self.tax(),
+                op::TAY => self.tay(),
+                op::TSX => self.tsx(),
+                op::TXA => self.txa(),
+                op::TXS => self.txs(),
+                op::TYA => self.tya(),
                 0x38 => self.sec(),
                 0x18 => self.clc(),
                 0x0a => self.asl_accumulate(),
                 0x4a => self.lsr_accumulate(),
                 0x2a => self.rol_accumulate(),
                 0x6a => self.ror_accumulate(),
+                op::DEX => self.dex(),
+                op::DEY => self.dey(),
+                op::CLI => self.cli(),
+                op::CLD => self.cld(),
+                op::CLV => self.clv(),
+                op::INY => self.iny(),
+                op::INX => self.inx(),
+                op::NOP => self.nop(),
+                op::PHA => self.pha(),
+                op::PHP => self.php(),
+                op::PLA => self.pla(),
+                op::PLP => self.plp(),
+                op::RTI => self.rti(),
                 0x00 => {
                     return;
                 }
                 _ => todo!(),
             }
+            /*if code != op::JSR && code != op::RTI {
+                self.program_counter += 1;
+            }*/
         }
     }
 
@@ -884,6 +908,22 @@ impl CPU {
 
     fn bpl(&mut self, mode: &AddressingMode) {
         if !StatusFlag::Negative.among(self.status) {
+            let addr = self.get_operand_address(&mode);
+            let value = self.mem_read(addr);
+            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+        }
+    }
+
+    fn bvc(&mut self, mode: &AddressingMode) {
+        if !StatusFlag::Overflow.among(self.status) {
+            let addr = self.get_operand_address(&mode);
+            let value = self.mem_read(addr);
+            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+        }
+    }
+
+    fn bvs(&mut self, mode: &AddressingMode) {
+        if StatusFlag::Overflow.among(self.status) {
             let addr = self.get_operand_address(&mode);
             let value = self.mem_read(addr);
             self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
@@ -1079,6 +1119,40 @@ impl CPU {
         self.update_zero_and_negative_flags(value);
     }
 
+    fn jsr(&mut self) {
+        let addr = self.get_operand_address(&AddressingMode::Absolute);
+        // self.program_counter + 2 -1
+        self.push_u16(self.program_counter + 1);
+        self.program_counter = addr;
+    }
+
+    fn nop(&mut self) {
+        // do nothing
+    }
+
+    fn pha(&mut self) {
+        self.push(self.register_a);
+    }
+
+    fn php(&mut self) {
+        self.push(self.status);
+    }
+
+    fn pla(&mut self) {
+        self.register_a = self.pop();
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn plp(&mut self) {
+        self.status = self.pop();
+    }
+
+    fn rti(&mut self) {
+        self.status = self.pop();
+        // todo: need verify from spec
+        self.program_counter = self.pop_u16();
+    }
+
     fn jmp(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         if *mode == AddressingMode::Absolute {
@@ -1089,9 +1163,28 @@ impl CPU {
         }
     }
 
-    fn tax(&mut self) {
-        self.register_x = self.register_a;
+    fn inx(&mut self) {
+        let (result, overflowed) = self.register_x.overflowing_add(1);
+        self.register_x = result;
         self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn iny(&mut self) {
+        let (result, overflowed) = self.register_y.overflowing_add(1);
+        self.register_y = result;
+        self.update_zero_and_negative_flags(self.register_y);
+    }
+
+    fn dex(&mut self) {
+        let (result, _) = self.register_x.overflowing_sub(1);
+        self.register_x = result;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn dey(&mut self) {
+        let (result, _) = self.register_y.overflowing_sub(1);
+        self.register_y = result;
+        self.update_zero_and_negative_flags(self.register_y);
     }
 
     fn tay(&mut self) {
@@ -1099,10 +1192,42 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_y);
     }
 
-    fn inx(&mut self) {
-        let (result, overflowed) = self.register_x.overflowing_add(1);
-        self.register_x = result;
+    fn tya(&mut self) {
+        self.register_a = self.register_y;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn tsx(&mut self) {
+        self.register_x = self.stack_counter;
         self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn txs(&mut self) {
+        self.stack_counter = self.register_x;
+    }
+
+    fn txa(&mut self) {
+        self.register_x = self.register_x;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn tax(&mut self) {
+        self.register_x = self.register_a;
+        self.update_zero_and_negative_flags(self.register_x);
+    }
+
+    fn cld(&mut self) {
+        StatusFlag::DecimalMode.remove(&mut self.status);
+    }
+
+    // Clears the interrupt disable flag allowing normal interrupt requests to be serviced.
+    fn cli(&mut self) {
+        StatusFlag::Interrupt.remove(&mut self.status);
+    }
+
+    // Clears the overflow flag.
+    fn clv(&mut self) {
+        StatusFlag::Overflow.remove(&mut self.status);
     }
 
     // set the carry flag to one.
@@ -1110,9 +1235,55 @@ impl CPU {
         StatusFlag::Carry.add(&mut self.status);
     }
 
+    fn sed(&mut self) {
+        StatusFlag::DecimalMode.add(&mut self.status);
+    }
+
+    fn sei(&mut self) {
+        StatusFlag::Interrupt.add(&mut self.status);
+    }
+
     // set the carry flag to zero.
     fn clc(&mut self) {
         StatusFlag::Carry.remove(&mut self.status);
+    }
+
+    fn brk(&mut self) {
+        self.push_u16(self.program_counter);
+        self.push(self.status);
+
+        // todo: force interrupt
+        let value = self.mem_read_u16(0xfffe);
+        self.program_counter = value;
+
+        StatusFlag::BreakCommand.add(&mut self.status);
+        StatusFlag::DecimalMode.remove(&mut self.status);
+    }
+
+    fn push_u16(&mut self, value: u16) {
+        let lo:u8 = (value & 0xff) as u8;
+        let hi:u8 = ((value >> 8) & 0xff) as u8;
+        self.push(lo);
+        self.push(hi);
+    }
+
+    fn push(&mut self, value: u8) {
+        self.mem_write(self.stack_counter as u16 + 0x100, value);
+        self.stack_counter -= 1;
+    }
+
+    fn pop_u16(&mut self) -> u16 {
+        let mut result:u16 = 0;
+        result = self.pop() as u16;
+        result <<= 8;
+        result |= self.pop() as u16;
+        return result;
+    }
+
+    fn pop(&mut self) -> u8 {
+        let result = self.mem_read(self.stack_counter as u16 + 0x100);
+        self.stack_counter += 1;
+        return result;
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -1189,6 +1360,16 @@ impl CPU {
                 panic!("mode {:?} is not supported", mode);
             }
         }
+    }
+
+    pub fn negative(&self) -> bool {
+        return StatusFlag::Negative.among(self.status);
+    }
+    pub fn zero(&self) -> bool {
+        return StatusFlag::Zero.among(self.status);
+    }
+    pub fn overflow(&self) -> bool {
+        return StatusFlag::Overflow.among(self.status);
     }
 }
 pub const LDA_IMMEDIATE: u8 = 0xa9u8;
