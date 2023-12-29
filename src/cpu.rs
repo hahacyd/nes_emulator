@@ -734,6 +734,7 @@ impl CPU {
                 op::PLP => self.plp(),
                 op::RTI => self.rti(),
                 op::JSR => self.jsr(),
+                op::RTS => self.rts(),
                 0x00 => {
                     return;
                 }
@@ -1177,6 +1178,12 @@ impl CPU {
         self.status = self.pop();
         // todo: need verify from spec
         self.program_counter = self.pop_u16();
+    }
+
+    fn rts(&mut self) {
+        // todo: need verify from spec
+        self.program_counter = self.pop_u16();
+        self.program_counter += 1;
     }
 
     fn jmp(&mut self, mode: &AddressingMode) {
