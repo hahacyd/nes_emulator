@@ -19,7 +19,7 @@ pub struct CPU {
     pub status: u8,
     pub program_counter: u16,
     pub stack_counter: u8,
-    memory: [u8; 0xFFFF],
+    memory: [u8; 0x10000],
 
     op_map: HashMap<u8, OpCode>,
 }
@@ -546,7 +546,7 @@ impl CPU {
             status: 0,
             program_counter: 0,
             stack_counter: 0,
-            memory: [0u8; 0xFFFF],
+            memory: [0u8; 0x10000],
             op_map,
         }
     }
@@ -714,8 +714,8 @@ impl CPU {
                 op::TXA => self.txa(),
                 op::TXS => self.txs(),
                 op::TYA => self.tya(),
-                0x38 => self.sec(),
-                0x18 => self.clc(),
+                op::SEC => self.sec(),
+                op::CLC => self.clc(),
                 0x0a => self.asl_accumulate(),
                 0x4a => self.lsr_accumulate(),
                 0x2a => self.rol_accumulate(),
@@ -735,6 +735,9 @@ impl CPU {
                 op::RTI => self.rti(),
                 op::JSR => self.jsr(),
                 op::RTS => self.rts(),
+                op::SED => self.sed(),
+                op::SEI => self.sei(),
+                // op::BRK => self.brk(),
                 0x00 => {
                     return;
                 }
@@ -1305,11 +1308,15 @@ impl CPU {
 
     fn push(&mut self, value: u8) {
         self.mem_write(self.stack_counter as u16 + 0x100, value);
-        self.stack_counter -= 1;
+        let (result, overflow) = self.stack_counter.overflowing_sub(1);
+        self.stack_counter = result;
+        if overflow {
+            panic!("overflow at push");
+        }
     }
 
     fn pop_u16(&mut self) -> u16 {
-        let mut result:u16 = 0;
+        let mut result:u16;
         result = self.pop() as u16;
         result <<= 8;
         result |= self.pop() as u16;
@@ -1317,9 +1324,13 @@ impl CPU {
     }
 
     fn pop(&mut self) -> u8 {
-        let result = self.mem_read(self.stack_counter as u16 + 0x100);
-        self.stack_counter += 1;
-        return result;
+        let value = self.mem_read(self.stack_counter as u16 + 0x100);
+        let (result, overflow) = self.stack_counter.overflowing_add(1);
+        self.stack_counter = result;
+        if overflow {
+            panic!("overflow at pop");
+        }
+        return value;
     }
 
     fn update_zero_and_negative_flags(&mut self, result: u8) {
