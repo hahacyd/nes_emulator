@@ -506,6 +506,20 @@ fn test_jsr_rts() {
     assert_eq!(cpu.register_y, 0x11);
 }
 
+#[test]
+fn test_bne() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![op::LDX, 0x01, op::BNE, 0x3, op::LDX, 0xff, op::BRK, op::BRK]);
+    assert_eq!(cpu.register_x, 0x1);
+    assert!(!cpu.zero());
+    assert!(!cpu.negative());
+
+    cpu.load_and_run(vec![op::LDX, 0x00, op::BNE, 0x3, op::LDX, 0xff, op::BRK, op::BRK]);
+    assert_eq!(cpu.register_x, 0xff);
+    assert!(!cpu.zero());
+    assert!(cpu.negative());
+}
+
 
 
 
