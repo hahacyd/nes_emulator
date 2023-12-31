@@ -1,7 +1,7 @@
 mod cpu;
 
 use crate::cpu::CPU;
-use crate::cpu::op_test;
+
 use sdl2::event::Event;
 use sdl2::EventPump;
 use sdl2::keyboard::Keycode;
