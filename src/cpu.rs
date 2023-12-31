@@ -1155,20 +1155,19 @@ impl CPU {
 
     fn dec(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
-        let mut value = self.mem_read(addr);
-        // todo: should `as i8` ?
-        value = ((value as i8) - 1) as u8;
-        self.mem_write(addr, value);
-        self.update_zero_and_negative_flags(value);
+        let value = self.mem_read(addr);
+        let (result, _) = value.overflowing_sub(1);
+        self.mem_write(addr, result);
+        self.update_zero_and_negative_flags(result);
     }
 
     fn inc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
-        let mut value = self.mem_read(addr);
+        let value = self.mem_read(addr);
         // todo: should `as i8` ?
-        value = ((value as i8) + 1) as u8;
-        self.mem_write(addr, value);
-        self.update_zero_and_negative_flags(value);
+        let (result, _) = value.overflowing_add(1);
+        self.mem_write(addr, result);
+        self.update_zero_and_negative_flags(result);
     }
 
     fn jsr(&mut self) {
