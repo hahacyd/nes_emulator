@@ -15,19 +15,19 @@ fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
         match event {
             Event::Quit {..} | Event::KeyDown {
                 keycode: Some(Keycode::Escape), ..} => std::process::exit(0),
-            Event::KeyDown { keycode: Some(Keycode::W), .. } => {
+            Event::KeyDown { keycode: Some(Keycode::W), .. } | Event::KeyDown { keycode: Some(Keycode::Up), ..} => {
                 cpu.mem_write(0xff, 0x77);
                 println!("{:?}", event);
             }
-            Event::KeyDown { keycode: Some(Keycode::S), .. } => {
+            Event::KeyDown { keycode: Some(Keycode::S), .. } | Event::KeyDown { keycode: Some(Keycode::Down), ..} => {
                 cpu.mem_write(0xff, 0x73);
                 println!("{:?}", event);
             }
-            Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+            Event::KeyDown { keycode: Some(Keycode::A), .. } | Event::KeyDown { keycode: Some(Keycode::Left), ..} => {
                 cpu.mem_write(0xff, 0x61);
                 println!("{:?}", event);
             }
-            Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+            Event::KeyDown { keycode: Some(Keycode::D), .. } | Event::KeyDown { keycode: Some(Keycode::Right), ..} => {
                 cpu.mem_write(0xff, 0x64);
                 println!("{:?}", event);
             }
