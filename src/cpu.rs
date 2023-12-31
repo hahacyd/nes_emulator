@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-mod op_test;
+use std::time::Duration;
+pub mod op_test;
 mod op;
 
 #[derive(Clone)]
@@ -94,6 +95,7 @@ impl BitAnd<StatusFlag> for u8 {
 }
 
 use std::ops::BitOr;
+use std::thread::sleep;
 impl BitOr<u8> for StatusFlag {
     type Output = u8;
     fn bitor(self, rhs: u8) -> Self::Output {
@@ -739,6 +741,7 @@ impl CPU {
                 op::SEI => self.sei(),
                 // op::BRK => self.brk(),
                 0x00 => {
+                    sleep(Duration::new(5, 0));
                     return;
                 }
                 _ => {
