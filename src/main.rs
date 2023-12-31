@@ -9,6 +9,7 @@ use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use rand::Rng;
 
+#[warn(unreachable_code)]
 fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
     for event in event_pump.poll_iter() {
         match event {
@@ -16,17 +17,21 @@ fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
                 keycode: Some(Keycode::Escape), ..} => std::process::exit(0),
             Event::KeyDown { keycode: Some(Keycode::W), .. } => {
                 cpu.mem_write(0xff, 0x77);
+                println!("{:?}", event);
             }
             Event::KeyDown { keycode: Some(Keycode::S), .. } => {
                 cpu.mem_write(0xff, 0x73);
+                println!("{:?}", event);
             }
             Event::KeyDown { keycode: Some(Keycode::A), .. } => {
                 cpu.mem_write(0xff, 0x61);
+                println!("{:?}", event);
             }
             Event::KeyDown { keycode: Some(Keycode::D), .. } => {
                 cpu.mem_write(0xff, 0x64);
+                println!("{:?}", event);
             }
-            _ => { /* do nothing */ }
+            _ => { print!(".")/* do nothing */ }
         }
     }
 }
@@ -122,6 +127,7 @@ fn main() {
             canvas.present();
         }
 
+        // ::std::thread::sleep(std::time::Duration::new(0, 500_000_000));
         ::std::thread::sleep(std::time::Duration::new(0, 70_000));
     });
     println!("Hello, world!");

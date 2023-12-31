@@ -498,6 +498,13 @@ fn test_tsx() {
     assert!(!cpu.zero());
 }
 
+#[test]
+fn test_jsr_rts() {
+    let mut cpu = CPU::new();
+    cpu.load_and_run(vec![op::JSR, 0x05, 0x06, op::INY, op::BRK, op::LDX, 0x10, op::LDY, 0x10, op::RTS]);
+    assert_eq!(cpu.register_x, 0x10);
+    assert_eq!(cpu.register_y, 0x11);
+}
 
 
 

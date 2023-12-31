@@ -541,6 +541,18 @@ impl CPU {
         // BEQ: If the zero flag is set then add the relative displacement to the program counter to cause a branch to a new location.
         op_map.insert(0xf0, OpCode::new("BEQ", 2, 2, AddressingMode::Immediate));
 
+        // BNE
+        op_map.insert(0xd0, OpCode::new("BNE", 2, 2, AddressingMode::Immediate));
+
+        // BPL
+        op_map.insert(0x10, OpCode::new("BPL", 2, 2, AddressingMode::Immediate));
+
+        // BVC
+        op_map.insert(0x50, OpCode::new("BVC", 2, 2, AddressingMode::Immediate));
+
+        // BVS
+        op_map.insert(0x70, OpCode::new("BVS", 2, 2, AddressingMode::Immediate));
+
         CPU {
             register_a: 0,
             register_x: 0,
@@ -607,6 +619,9 @@ impl CPU {
     pub fn run_with_callbacks<F>(&mut self, mut callback: F) where F: FnMut(&mut CPU) {
         loop {
             callback(self);
+            if self.program_counter < self.mem_read_u16(0xFFFC) {
+                panic!("invalid program_counter:{}", self.program_counter);
+            }
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
             if self.op_map.contains_key(&code) {
@@ -698,6 +713,12 @@ impl CPU {
                     "BPL" => {
                         self.bpl(&mode);
                     }
+                    "BVC" => {
+                        self.bvc(&mode);
+                    }
+                    "BVS" => {
+                        self.bvs(&mode);
+                    }
                     _ => {
                         panic!("Internal error in op_map match~");
                     }
@@ -741,7 +762,7 @@ impl CPU {
                 op::SEI => self.sei(),
                 // op::BRK => self.brk(),
                 0x00 => {
-                    sleep(Duration::new(5, 0));
+                    // sleep(Duration::new(5, 0));
                     return;
                 }
                 _ => {
@@ -1327,12 +1348,12 @@ impl CPU {
     }
 
     fn pop(&mut self) -> u8 {
-        let value = self.mem_read(self.stack_counter as u16 + 0x100);
         let (result, overflow) = self.stack_counter.overflowing_add(1);
         self.stack_counter = result;
         if overflow {
             panic!("overflow at pop");
         }
+        let value = self.mem_read(self.stack_counter as u16 + 0x100);
         return value;
     }
 

@@ -7,6 +7,9 @@ pub const BRK:u8 = 0x00;
 pub const INX:u8 = 0xe8;
 pub const INY:u8 = 0xc8;
 
+pub const LDX:u8 = 0xa2;
+pub const LDY:u8 = 0xa0;
+
 pub const SEC:u8 = 0x38;
 pub const CLC:u8 = 0x18;
 
