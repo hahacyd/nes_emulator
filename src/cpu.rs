@@ -1,5 +1,7 @@
 use std::collections::HashMap;
-use std::time::Duration;
+use super::bus::Bus;
+use super::bus::Mem;
+use super::cartridge::Rom;
 pub mod op_test;
 mod op;
 
@@ -20,7 +22,7 @@ pub struct CPU {
     pub status: u8,
     pub program_counter: u16,
     pub stack_counter: u8,
-    memory: [u8; 0x10000],
+    pub bus: Bus,
 
     op_map: HashMap<u8, OpCode>,
 }
@@ -95,7 +97,6 @@ impl BitAnd<StatusFlag> for u8 {
 }
 
 use std::ops::BitOr;
-use std::thread::sleep;
 impl BitOr<u8> for StatusFlag {
     type Output = u8;
     fn bitor(self, rhs: u8) -> Self::Output {
@@ -131,8 +132,18 @@ impl OpCode {
     }
 }
 
+impl Mem for CPU {
+    fn mem_read(&self, addr: u16) -> u8 {
+        self.bus.mem_read(addr)
+    }
+
+    fn mem_write(&mut self, addr: u16, data: u8) {
+        self.bus.mem_write(addr, data);
+    }
+}
+
 impl CPU {
-    pub fn new() -> Self {
+    pub fn new(rom: Rom) -> Self {
         let mut op_map: HashMap<u8, OpCode> = HashMap::new();
 
         // LDA:
@@ -560,21 +571,13 @@ impl CPU {
             status: 0,
             program_counter: 0,
             stack_counter: 0,
-            memory: [0u8; 0x10000],
+            bus: Bus::new(rom),
             op_map,
         }
     }
 
-    pub fn mem_read(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
-    }
-
-    pub fn mem_write(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data
-    }
-
-    pub fn load_and_run(&mut self, program: Vec<u8>) {
-        self.load(program);
+    pub fn load_and_run(&mut self) {
+        // self.load();
         self.reset();
         self.run();
     }
@@ -599,17 +602,6 @@ impl CPU {
         self.program_counter = self.mem_read_u16(0xFFFC);
         /* [0x0100 .. 0x1ff] */
         self.stack_counter = 0xff;
-    }
-
-    pub fn load(&mut self, program: Vec<u8>) {
-        // normal address
-        // self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
-
-
-        // greedy snake
-        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program[..]);
-        // set where address the program start
-        self.mem_write_u16(0xFFFC, 0x0600);
     }
 
     pub fn run(&mut self) {
