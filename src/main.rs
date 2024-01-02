@@ -125,7 +125,7 @@ fn main() {
     let mut rng = rand::thread_rng();
 
     // load the game
-    let rom = load_nes("/home/yadong/study/nes/snake.nes");
+    let rom = load_nes("snake.nes");
     let mut cpu = CPU::new(rom);
     cpu.reset();
     cpu.run_with_callbacks(move |cpu| {
