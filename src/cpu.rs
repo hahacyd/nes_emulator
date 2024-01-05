@@ -616,6 +616,7 @@ impl CPU {
             }
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
+
             if self.op_map.contains_key(&code) {
                 let op = self.op_map[&code].clone();
                 // self.program_counter += (op.op_length - 1) as u16;
@@ -715,6 +716,10 @@ impl CPU {
                         panic!("Internal error in op_map match~");
                     }
                 }
+                
+                // propagate tick to bus
+                self.bus.tick(op.cycles);
+
                 if op.name != "JMP" {
                     self.program_counter += (op.op_length - 1) as u16;
                 }
@@ -754,7 +759,6 @@ impl CPU {
                 op::SEI => self.sei(),
                 // op::BRK => self.brk(),
                 0x00 => {
-                    // sleep(Duration::new(5, 0));
                     return;
                 }
                 _ => {

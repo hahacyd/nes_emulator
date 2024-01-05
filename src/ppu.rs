@@ -12,7 +12,7 @@ pub struct NesPPU {
     // register
     pub ctrl: ControlRegister,
     pub mask:u8,
-    pub status: u8,
+    pub status: Status,
     pub oam_addr: u8,
 
     pub oam_data: [u8; 256],
@@ -28,6 +28,10 @@ pub struct NesPPU {
 
     // internal member
     internal_data_buf: u8,
+
+
+    cycles: usize,
+    scanline: usize,
 }
 
 impl NesPPU {
@@ -42,15 +46,39 @@ impl NesPPU {
             ctrl: ControlRegister::new(),
             internal_data_buf: 0,
             oam_addr: 0,
-            status: 0,
+            status: Status::new(),
             scroll: 0,
             oam_data: [0; 256],
             mask: 0,
+            cycles: 0,
+            scanline: 0,
         }
     }
 
+    pub fn tick(&mut self, cycles: u8) -> bool {
+        self.cycles += cycles as usize;
+        if self.cycles >= 341 {
+            self.cycles = self.cycles - 341;
+            self.scanline += 1;
+
+            if self.scanline == 241 {
+                if self.ctrl.contains(ControlRegister::GENERATE_NMI) {
+                    self.status.set(Status::V_BLANK, true);
+                    todo!("Should trigger NMI interrupt");
+                }
+            }
+
+            if self.scanline >= 262 {
+                self.scanline = 0;
+                self.status.set(Status::V_BLANK, false);
+                return true;
+            }
+        }
+        return false;
+    }
+
     pub fn read_status(&self) -> u8 {
-        return self.status;
+        return self.status.bits();
     }
 
     pub fn read_oam_data(&self) -> u8 {
@@ -201,6 +229,14 @@ impl AddrRegister {
 }
 
 bitflags! {
+    pub struct Status: u8 {
+        const V_BLANK = 0b1000_0000;
+        const SPRITE_0_HIT = 0b0100_0000;
+        const SPRITE_OVERFLOW = 0b0010_0000;
+    }
+}
+
+bitflags! {
     // 7  bit  0
     // ---- ----
     // VPHB SINN
@@ -226,6 +262,12 @@ bitflags! {
         const SPRITE_SIZE             = 0b0010_0000;
         const MASTER_SLAVE_SELECT     = 0b0100_0000;
         const GENERATE_NMI            = 0b1000_0000;
+    }
+}
+
+impl Status {
+    pub fn new() -> Self {
+        Status::from_bits_truncate(0b0000_0000)
     }
 }
 
