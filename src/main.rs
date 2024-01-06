@@ -2,6 +2,7 @@ mod cpu;
 mod ppu;
 mod bus;
 mod cartridge;
+mod pallete;
 
 use crate::cpu::CPU;
 use crate::bus::Mem;
