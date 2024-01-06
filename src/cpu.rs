@@ -25,6 +25,10 @@ pub struct CPU {
     pub bus: Bus,
 
     op_map: HashMap<u8, OpCode>,
+
+    // crucial details about added cpu's cycles
+    pub added_cycles_of_addr: u8,
+    pub added_cycles_of_br: u8,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -692,6 +696,9 @@ impl CPU {
             stack_counter: 0,
             bus: Bus::new(rom),
             op_map,
+
+            added_cycles_of_addr: 0,
+            added_cycles_of_br: 0,
         }
     }
 
@@ -915,7 +922,9 @@ impl CPU {
                 }
 
                 // propagate tick to bus
-                self.bus.tick(op.cycles);
+                self.bus.tick(op.cycles + self.added_cycles_of_br + self.added_cycles_of_addr);
+                self.added_cycles_of_addr = 0;
+                self.added_cycles_of_br = 0;
 
                 if self.program_counter == old_pc {
                     self.program_counter += (op.op_length - 1) as u16;
@@ -1083,67 +1092,67 @@ impl CPU {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
+    fn cal_displacement_and_add_cycles(&mut self, mode: &AddressingMode) {
+        // +1 for the successful branch
+        self.added_cycles_of_br += 1;
+
+        let addr = self.get_operand_address(&mode);
+        let value = self.mem_read(addr);
+        let result = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+
+        // the '1' added to program_counter is the second byte of branch instruction
+        if (self.program_counter + 1) & 0xff00 != result & 0xff00 {
+            // +1 for cross page
+            self.added_cycles_of_addr += 1;
+        }
+        self.program_counter = result;
+    }
+
     fn bcc(&mut self, mode: &AddressingMode) {
         if !StatusFlag::Carry.among(self.status) {
-            let addr = self.get_operand_address(&mode);
-            let value = self.mem_read(addr);
-            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+            self.cal_displacement_and_add_cycles(&mode);
         }
     }
 
     fn bcs(&mut self, mode: &AddressingMode) {
         if StatusFlag::Carry.among(self.status) {
-            let addr = self.get_operand_address(&mode);
-            let value = self.mem_read(addr);
-            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+            self.cal_displacement_and_add_cycles(&mode);
         }
     }
 
     fn beq(&mut self, mode: &AddressingMode) {
         if StatusFlag::Zero.among(self.status) {
-            let addr = self.get_operand_address(&mode);
-            let value = self.mem_read(addr);
-            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+            self.cal_displacement_and_add_cycles(&mode);
         }
     }
 
     fn bne(&mut self, mode: &AddressingMode) {
         if !StatusFlag::Zero.among(self.status) {
-            let addr = self.get_operand_address(&mode);
-            let value = self.mem_read(addr);
-            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+            self.cal_displacement_and_add_cycles(&mode);
         }
     }
 
     fn bmi(&mut self, mode: &AddressingMode) {
         if StatusFlag::Negative.among(self.status) {
-            let addr = self.get_operand_address(&mode);
-            let value = self.mem_read(addr);
-            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+            self.cal_displacement_and_add_cycles(&mode);
         }
     }
 
     fn bpl(&mut self, mode: &AddressingMode) {
         if !StatusFlag::Negative.among(self.status) {
-            let addr = self.get_operand_address(&mode);
-            let value = self.mem_read(addr);
-            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+            self.cal_displacement_and_add_cycles(&mode);
         }
     }
 
     fn bvc(&mut self, mode: &AddressingMode) {
         if !StatusFlag::Overflow.among(self.status) {
-            let addr = self.get_operand_address(&mode);
-            let value = self.mem_read(addr);
-            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+            self.cal_displacement_and_add_cycles(&mode);
         }
     }
 
     fn bvs(&mut self, mode: &AddressingMode) {
         if StatusFlag::Overflow.among(self.status) {
-            let addr = self.get_operand_address(&mode);
-            let value = self.mem_read(addr);
-            self.program_counter = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+            self.cal_displacement_and_add_cycles(&mode);
         }
     }
 
@@ -1570,12 +1579,18 @@ impl CPU {
             AddressingMode::Absolute_X => {
                 let base = self.mem_read_u16(self.program_counter);
                 let addr = base.wrapping_add(self.register_x as u16);
+                if base & 0xff00 != addr & 0xff00 {
+                    self.added_cycles_of_addr += 1;
+                }
                 addr
             }
 
             AddressingMode::Absolute_Y => {
                 let base = self.mem_read_u16(self.program_counter);
                 let addr = base.wrapping_add(self.register_y as u16);
+                if base & 0xff00 != addr & 0xff00 {
+                    self.added_cycles_of_addr += 1;
+                }
                 addr
             }
 
@@ -1597,6 +1612,9 @@ impl CPU {
                 let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
                 let deref = deref_base.wrapping_add(self.register_y as u16);
+                if deref_base & 0xff00 != deref & 0xff00 {
+                    self.added_cycles_of_addr += 1;
+                }
                 deref
             }
 
