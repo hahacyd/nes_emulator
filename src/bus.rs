@@ -44,6 +44,14 @@ impl Bus {
         self.cycles += cycles as usize;
         self.ppu.tick(cycles * 3);
     }
+
+    pub fn poll_nmi_status(&mut self) -> bool {
+        if Some(true) == self.ppu.nmi_interrupt {
+            self.ppu.nmi_interrupt = Some(false);
+            return true;
+        }
+        return false;
+    }
 }
 
 pub trait Mem {

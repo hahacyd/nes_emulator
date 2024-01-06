@@ -53,7 +53,7 @@ pub enum AddressingMode {
 enum StatusFlag {
     Carry = 0b0000_0001,
     Zero = 0b0000_0010,
-    Interrupt = 0b0000_0100,
+    InterruptDisable = 0b0000_0100,
     DecimalMode = 0b0000_1000,
     BreakCommand = 0b0001_0000,
     Overflow = 0b0010_0000,
@@ -739,7 +739,12 @@ impl CPU {
         F: FnMut(&mut CPU),
     {
         loop {
+            if self.bus.poll_nmi_status() {
+                self.interrupt_nmi();
+            }
+
             callback(self);
+
             if self.program_counter < self.mem_read_u16(0xFFFC) {
                 panic!("invalid program_counter:{}", self.program_counter);
             }
@@ -1467,7 +1472,7 @@ impl CPU {
 
     // Clears the interrupt disable flag allowing normal interrupt requests to be serviced.
     fn cli(&mut self) {
-        StatusFlag::Interrupt.remove(&mut self.status);
+        StatusFlag::InterruptDisable.remove(&mut self.status);
     }
 
     // Clears the overflow flag.
@@ -1485,7 +1490,7 @@ impl CPU {
     }
 
     fn sei(&mut self) {
-        StatusFlag::Interrupt.add(&mut self.status);
+        StatusFlag::InterruptDisable.add(&mut self.status);
     }
 
     // set the carry flag to zero.
@@ -1504,7 +1509,7 @@ impl CPU {
         StatusFlag::BreakCommand.add(&mut self.status);
 
         // side effect
-        StatusFlag::Interrupt.add(&mut self.status);
+        StatusFlag::InterruptDisable.add(&mut self.status);
         // StatusFlag::DecimalMode.remove(&mut self.status);
     }
 
@@ -1554,6 +1559,20 @@ impl CPU {
         } else {
             self.status = self.status & StatusFlag::Negative.reverse();
         }
+    }
+
+    fn interrupt_nmi(&mut self) {
+        self.push_u16(self.program_counter);
+        StatusFlag::BreakCommand.add(&mut self.status);
+        
+        let mut flag = self.status.clone();
+        StatusFlag::BreakCommand.add(&mut flag);
+        
+        self.push(flag);
+        StatusFlag::InterruptDisable.add(&mut self.status);
+
+        self.bus.tick(2);
+        self.program_counter = self.mem_read_u16(0xfffa);
     }
 
     fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {

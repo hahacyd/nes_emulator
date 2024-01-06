@@ -32,6 +32,8 @@ pub struct NesPPU {
 
     cycles: usize,
     scanline: usize,
+
+    pub nmi_interrupt:Option<bool>,
 }
 
 impl NesPPU {
@@ -52,6 +54,7 @@ impl NesPPU {
             mask: 0,
             cycles: 0,
             scanline: 0,
+            nmi_interrupt: Some(false),
         }
     }
 
@@ -64,7 +67,7 @@ impl NesPPU {
             if self.scanline == 241 {
                 if self.ctrl.contains(ControlRegister::GENERATE_NMI) {
                     self.status.set(Status::V_BLANK, true);
-                    todo!("Should trigger NMI interrupt");
+                    self.nmi_interrupt = Some(true);
                 }
             }
 

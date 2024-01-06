@@ -546,7 +546,7 @@ fn test_cli() {
     let rom = prepare_rom(vec![op::CLI, 0x00]);
     let mut cpu = CPU::new(rom);
     cpu.load_and_run();
-    assert!(!StatusFlag::Interrupt.among(cpu.status));
+    assert!(!StatusFlag::InterruptDisable.among(cpu.status));
 }
 
 #[test]
