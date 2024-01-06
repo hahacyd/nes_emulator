@@ -1,9 +1,9 @@
-use std::collections::HashMap;
 use super::bus::Bus;
 use super::bus::Mem;
 use super::cartridge::Rom;
-pub mod op_test;
+use std::collections::HashMap;
 mod op;
+pub mod op_test;
 
 #[derive(Clone)]
 struct OpCode {
@@ -424,6 +424,10 @@ impl CPU {
         );
 
         // ASL: This operation shifts all the bits of the accumulator or memory contents one bit left.
+        op_map.insert(
+            op::ASL,
+            OpCode::new("ASL", 1, 2, AddressingMode::NoneAddressing),
+        );
         op_map.insert(0x06, OpCode::new("ASL", 2, 5, AddressingMode::ZeroPage));
         op_map.insert(0x16, OpCode::new("ASL", 2, 6, AddressingMode::ZeroPage_X));
         op_map.insert(0x0e, OpCode::new("ASL", 3, 6, AddressingMode::Absolute));
@@ -438,6 +442,10 @@ impl CPU {
         );
 
         // LSR: Each of the bits in A or M is shift one place to the right. The bit that was in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
+        op_map.insert(
+            op::LSR,
+            OpCode::new("LSR", 1, 2, AddressingMode::NoneAddressing),
+        );
         op_map.insert(0x46, OpCode::new("LSR", 2, 5, AddressingMode::ZeroPage));
         op_map.insert(0x56, OpCode::new("LSR", 2, 6, AddressingMode::ZeroPage_X));
         op_map.insert(0x4e, OpCode::new("LSR", 3, 6, AddressingMode::Absolute));
@@ -452,6 +460,10 @@ impl CPU {
         );
 
         // ROL: Move each of the bits in either A or M one place to the left. Bit 0 is filled with the current value of the carry flag whilst the old bit 7 becomes the new carry flag value.
+        op_map.insert(
+            op::ROL,
+            OpCode::new("ROL", 1, 2, AddressingMode::NoneAddressing),
+        );
         op_map.insert(0x26, OpCode::new("ROL", 2, 5, AddressingMode::ZeroPage));
         op_map.insert(0x36, OpCode::new("ROL", 2, 6, AddressingMode::ZeroPage_X));
         op_map.insert(0x2e, OpCode::new("ROL", 3, 6, AddressingMode::Absolute));
@@ -466,6 +478,10 @@ impl CPU {
         );
 
         // ROR:
+        op_map.insert(
+            op::ROR,
+            OpCode::new("ROR", 1, 2, AddressingMode::NoneAddressing),
+        );
         op_map.insert(0x66, OpCode::new("ROR", 2, 5, AddressingMode::ZeroPage));
         op_map.insert(0x76, OpCode::new("ROR", 2, 6, AddressingMode::ZeroPage_X));
         op_map.insert(0x6e, OpCode::new("ROR", 3, 6, AddressingMode::Absolute));
@@ -564,6 +580,109 @@ impl CPU {
         // BVS
         op_map.insert(0x70, OpCode::new("BVS", 2, 2, AddressingMode::Immediate));
 
+        op_map.insert(
+            op::PHA,
+            OpCode::new("PHA", 1, 3, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::PHP,
+            OpCode::new("PHP", 1, 3, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::PLA,
+            OpCode::new("PLA", 1, 4, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::PLP,
+            OpCode::new("PLP", 1, 4, AddressingMode::NoneAddressing),
+        );
+
+        op_map.insert(
+            op::RTI,
+            OpCode::new("RTI", 1, 6, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::RTS,
+            OpCode::new("RTS", 1, 6, AddressingMode::NoneAddressing),
+        );
+
+        op_map.insert(
+            op::JSR,
+            OpCode::new("JSR", 3, 6, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::TAX,
+            OpCode::new("TAX", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::TAY,
+            OpCode::new("TAY", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::TSX,
+            OpCode::new("TSX", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::TXA,
+            OpCode::new("TXA", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::TXS,
+            OpCode::new("TXS", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::TYA,
+            OpCode::new("TYA", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::SEC,
+            OpCode::new("SEC", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::CLC,
+            OpCode::new("CLC", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::DEX,
+            OpCode::new("DEX", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::DEY,
+            OpCode::new("DEY", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::CLI,
+            OpCode::new("CLI", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::CLD,
+            OpCode::new("CLD", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::CLV,
+            OpCode::new("CLV", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::INY,
+            OpCode::new("INY", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::INX,
+            OpCode::new("INX", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::NOP,
+            OpCode::new("NOP", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::SED,
+            OpCode::new("SED", 1, 2, AddressingMode::NoneAddressing),
+        );
+        op_map.insert(
+            op::SEI,
+            OpCode::new("SEI", 1, 2, AddressingMode::NoneAddressing),
+        );
+
         CPU {
             register_a: 0,
             register_x: 0,
@@ -605,10 +724,13 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
-        self.run_with_callbacks(|_|{});
+        self.run_with_callbacks(|_| {});
     }
 
-    pub fn run_with_callbacks<F>(&mut self, mut callback: F) where F: FnMut(&mut CPU) {
+    pub fn run_with_callbacks<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         loop {
             callback(self);
             if self.program_counter < self.mem_read_u16(0xFFFC) {
@@ -616,10 +738,10 @@ impl CPU {
             }
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
+            let old_pc = self.program_counter;
 
             if self.op_map.contains_key(&code) {
                 let op = self.op_map[&code].clone();
-                // self.program_counter += (op.op_length - 1) as u16;
                 let mode = &op.mode;
                 match op.name.as_str() {
                     "LDA" => {
@@ -712,15 +834,90 @@ impl CPU {
                     "BVS" => {
                         self.bvs(&mode);
                     }
+                    "TAX" => {
+                        self.tax();
+                    }
+                    "TAY" => {
+                        self.tay();
+                    }
+                    "TSX" => {
+                        self.tsx();
+                    }
+                    "TXA" => {
+                        self.txa();
+                    }
+                    "TXS" => {
+                        self.txs();
+                    }
+                    "TYA" => {
+                        self.tya();
+                    }
+                    "SEC" => {
+                        self.sec();
+                    }
+                    "CLC" => {
+                        self.clc();
+                    }
+                    "DEX" => {
+                        self.dex();
+                    }
+                    "DEY" => {
+                        self.dey();
+                    }
+                    "CLI" => {
+                        self.cli();
+                    }
+                    "CLD" => {
+                        self.cld();
+                    }
+                    "CLV" => {
+                        self.clv();
+                    }
+                    "INY" => {
+                        self.iny();
+                    }
+                    "INX" => {
+                        self.inx();
+                    }
+                    "NOP" => {
+                        self.nop();
+                    }
+                    "PHA" => {
+                        self.pha();
+                    }
+                    "PHP" => {
+                        self.php();
+                    }
+                    "PLA" => {
+                        self.pla();
+                    }
+                    "PLP" => {
+                        self.plp();
+                    }
+                    "RTI" => {
+                        self.rti();
+                    }
+                    "JSR" => {
+                        self.jsr();
+                    }
+                    "RTS" => {
+                        self.rts();
+                    }
+                    "SED" => {
+                        self.sed();
+                    }
+                    "SEI" => {
+                        self.sei();
+                    }
                     _ => {
                         panic!("Internal error in op_map match~");
                     }
                 }
-                
+
                 // propagate tick to bus
                 self.bus.tick(op.cycles);
 
-                if op.name != "JMP" {
+                if self.program_counter == old_pc {
                     self.program_counter += (op.op_length - 1) as u16;
                 }
                 continue;
@@ -728,35 +925,6 @@ impl CPU {
 
             // single address mode
             match code {
-                op::TAX => self.tax(),
-                op::TAY => self.tay(),
-                op::TSX => self.tsx(),
-                op::TXA => self.txa(),
-                op::TXS => self.txs(),
-                op::TYA => self.tya(),
-                op::SEC => self.sec(),
-                op::CLC => self.clc(),
-                0x0a => self.asl_accumulate(),
-                0x4a => self.lsr_accumulate(),
-                0x2a => self.rol_accumulate(),
-                0x6a => self.ror_accumulate(),
-                op::DEX => self.dex(),
-                op::DEY => self.dey(),
-                op::CLI => self.cli(),
-                op::CLD => self.cld(),
-                op::CLV => self.clv(),
-                op::INY => self.iny(),
-                op::INX => self.inx(),
-                op::NOP => self.nop(),
-                op::PHA => self.pha(),
-                op::PHP => self.php(),
-                op::PLA => self.pla(),
-                op::PLP => self.plp(),
-                op::RTI => self.rti(),
-                op::JSR => self.jsr(),
-                op::RTS => self.rts(),
-                op::SED => self.sed(),
-                op::SEI => self.sei(),
                 // op::BRK => self.brk(),
                 0x00 => {
                     return;
@@ -766,9 +934,6 @@ impl CPU {
                     todo!()
                 }
             }
-            /*if code != op::JSR && code != op::RTI {
-                self.program_counter += 1;
-            }*/
         }
     }
 
@@ -885,6 +1050,10 @@ impl CPU {
     }
 
     fn asl(&mut self, mode: &AddressingMode) {
+        if mode == &AddressingMode::NoneAddressing {
+            self.asl_accumulate();
+            return;
+        }
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
@@ -979,6 +1148,10 @@ impl CPU {
     }
 
     fn lsr(&mut self, mode: &AddressingMode) {
+        if mode == &AddressingMode::NoneAddressing {
+            self.lsr_accumulate();
+            return;
+        }
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
@@ -1008,6 +1181,10 @@ impl CPU {
     }
 
     fn rol(&mut self, mode: &AddressingMode) {
+        if mode == &AddressingMode::NoneAddressing {
+            self.rol_accumulate();
+            return;
+        }
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
@@ -1043,6 +1220,10 @@ impl CPU {
     }
 
     fn ror(&mut self, mode: &AddressingMode) {
+        if mode == &AddressingMode::NoneAddressing {
+            self.ror_accumulate();
+            return;
+        }
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
 
@@ -1319,8 +1500,8 @@ impl CPU {
     }
 
     fn push_u16(&mut self, value: u16) {
-        let lo:u8 = (value & 0xff) as u8;
-        let hi:u8 = ((value >> 8) & 0xff) as u8;
+        let lo: u8 = (value & 0xff) as u8;
+        let hi: u8 = ((value >> 8) & 0xff) as u8;
         self.push(lo);
         self.push(hi);
     }
@@ -1335,7 +1516,7 @@ impl CPU {
     }
 
     fn pop_u16(&mut self) -> u16 {
-        let mut result:u16;
+        let mut result: u16;
         result = self.pop() as u16;
         result <<= 8;
         result |= self.pop() as u16;

@@ -35,3 +35,8 @@ pub const TYA:u8 = 0x98;
 
 pub const BMI:u8 = 0x30;
 pub const BNE:u8 = 0xd0;
+
+pub const ASL:u8 = 0x0a;
+pub const LSR:u8 = 0x4a;
+pub const ROL:u8 = 0x2a;
+pub const ROR:u8 = 0x6a;
