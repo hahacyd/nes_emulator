@@ -1393,6 +1393,9 @@ impl CPU {
 
     fn rti(&mut self) {
         self.status = self.pop();
+
+        StatusFlag::BreakCommand.remove(&mut self.status);
+
         // todo: need verify from spec
         self.program_counter = self.pop_u16();
     }
