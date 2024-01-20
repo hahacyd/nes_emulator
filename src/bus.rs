@@ -2,19 +2,19 @@ use super::cartridge::Rom;
 use super::ppu::NesPPU;
 
 // #[derive(Clone)]
-pub struct Bus {
+pub struct Bus<'call> {
     cpu_vram: [u8; 2048],
     rom: Rom,
     ppu: NesPPU,
 
     cycles: usize,
-    gameloop_callback: Box<dyn FnMut(&NesPPU)>,
+    gameloop_callback: Box<dyn FnMut(&NesPPU) + 'call>,
 }
 
-impl Bus {
-    pub fn new<F>(rom: Rom, gameloop_callback: F) -> Bus
+impl<'call> Bus<'call> {
+    pub fn new<F>(rom: Rom, gameloop_callback: F) -> Bus<'call>
     where
-        F: FnMut(&NesPPU),
+        F: FnMut(&NesPPU) + 'call,
         {
 
 
@@ -72,7 +72,7 @@ const RAM_MIRRORS_END: u16 = 0x1FFF;
 const PPU_REGISTERS: u16 = 0x2000;
 const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
 
-impl Mem for Bus {
+impl<'call> Mem for Bus<'call> {
     fn mem_read(&mut self, addr: u16) -> u8 {
         match addr {
             RAM..=RAM_MIRRORS_END => {

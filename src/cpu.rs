@@ -14,14 +14,14 @@ struct OpCode {
 
 //#[derive(Clone)]
 #[allow(non_camel_case_types)]
-pub struct CPU {
+pub struct CPU<'call> {
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
     pub status: u8,
     pub program_counter: u16,
     pub stack_counter: u8,
-    pub bus: Bus,
+    pub bus: Bus<'call>,
 
     op_map: HashMap<u8, OpCode>,
 
@@ -135,7 +135,7 @@ impl OpCode {
     }
 }
 
-impl Mem for CPU {
+impl<'call> Mem for CPU<'call> {
     fn mem_read(&mut self, addr: u16) -> u8 {
         self.bus.mem_read(addr)
     }
@@ -145,8 +145,8 @@ impl Mem for CPU {
     }
 }
 
-impl CPU {
-    pub fn new(bus: Bus) -> Self {
+impl<'call> CPU<'call>{
+    pub fn new(bus: Bus<'call>) -> Self {
         let mut op_map: HashMap<u8, OpCode> = HashMap::new();
 
         // LDA:
