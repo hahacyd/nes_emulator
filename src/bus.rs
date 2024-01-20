@@ -1,17 +1,23 @@
 use super::cartridge::Rom;
 use super::ppu::NesPPU;
 
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct Bus {
     cpu_vram: [u8; 2048],
     rom: Rom,
     ppu: NesPPU,
 
     cycles: usize,
+    gameloop_callback: Box<dyn FnMut(&NesPPU)>,
 }
 
 impl Bus {
-    pub fn new(rom: Rom) -> Self{
+    pub fn new<F>(rom: Rom, gameloop_callback: F) -> Bus
+    where
+        F: FnMut(&NesPPU),
+        {
+
+
         let mut cpu_vram: [u8; 2048] = [0; 2048];
         let cpu_vram_len = cpu_vram.len();
         let rom_prg_len = rom.prg_rom.len();
@@ -27,6 +33,7 @@ impl Bus {
             rom,
             ppu,
             cycles:0,
+            gameloop_callback: Box::from(gameloop_callback),
         }
     }
 

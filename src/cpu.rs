@@ -1,6 +1,5 @@
 use super::bus::Bus;
 use super::bus::Mem;
-use super::cartridge::Rom;
 use std::collections::HashMap;
 mod op;
 pub mod op_test;
@@ -13,7 +12,7 @@ struct OpCode {
     mode: AddressingMode,
 }
 
-#[derive(Clone)]
+//#[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub struct CPU {
     pub register_a: u8,
@@ -147,7 +146,7 @@ impl Mem for CPU {
 }
 
 impl CPU {
-    pub fn new(rom: Rom) -> Self {
+    pub fn new(bus: Bus) -> Self {
         let mut op_map: HashMap<u8, OpCode> = HashMap::new();
 
         // LDA:
@@ -694,9 +693,8 @@ impl CPU {
             status: 0,
             program_counter: 0,
             stack_counter: 0,
-            bus: Bus::new(rom),
+            bus,
             op_map,
-
             added_cycles_of_addr: 0,
             added_cycles_of_br: 0,
         }

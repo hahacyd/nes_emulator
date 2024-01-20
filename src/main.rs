@@ -1,41 +1,75 @@
-mod cpu;
-mod ppu;
 mod bus;
 mod cartridge;
-mod pallete;
+mod cpu;
+mod ppu;
+mod render;
 
-use crate::cpu::CPU;
+use crate::bus::Bus;
 use crate::bus::Mem;
-use crate::ppu::show_frame;
+use crate::cpu::CPU;
+use crate::ppu::NesPPU;
+use crate::render::frame::show_frame;
+use crate::render::frame::Frame;
 use cartridge::Rom;
 use std::fs;
 
+use rand::Rng;
 use sdl2::event::Event;
-use sdl2::EventPump;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
-use rand::Rng;
+use sdl2::EventPump;
 
 #[warn(unreachable_code)]
 fn handle_user_input(cpu: &mut CPU, event_pump: &mut EventPump) {
     for event in event_pump.poll_iter() {
         match event {
-            Event::Quit {..} | Event::KeyDown {
-                keycode: Some(Keycode::Escape), ..} => std::process::exit(0),
-            Event::KeyDown { keycode: Some(Keycode::W), .. } | Event::KeyDown { keycode: Some(Keycode::Up), ..} => {
+            Event::Quit { .. }
+            | Event::KeyDown {
+                keycode: Some(Keycode::Escape),
+                ..
+            } => std::process::exit(0),
+            Event::KeyDown {
+                keycode: Some(Keycode::W),
+                ..
+            }
+            | Event::KeyDown {
+                keycode: Some(Keycode::Up),
+                ..
+            } => {
                 cpu.mem_write(0xff, 0x77);
                 // println!("{:?}", event);
             }
-            Event::KeyDown { keycode: Some(Keycode::S), .. } | Event::KeyDown { keycode: Some(Keycode::Down), ..} => {
+            Event::KeyDown {
+                keycode: Some(Keycode::S),
+                ..
+            }
+            | Event::KeyDown {
+                keycode: Some(Keycode::Down),
+                ..
+            } => {
                 cpu.mem_write(0xff, 0x73);
                 // println!("{:?}", event);
             }
-            Event::KeyDown { keycode: Some(Keycode::A), .. } | Event::KeyDown { keycode: Some(Keycode::Left), ..} => {
+            Event::KeyDown {
+                keycode: Some(Keycode::A),
+                ..
+            }
+            | Event::KeyDown {
+                keycode: Some(Keycode::Left),
+                ..
+            } => {
                 cpu.mem_write(0xff, 0x61);
                 // println!("{:?}", event);
             }
-            Event::KeyDown { keycode: Some(Keycode::D), .. } | Event::KeyDown { keycode: Some(Keycode::Right), ..} => {
+            Event::KeyDown {
+                keycode: Some(Keycode::D),
+                ..
+            }
+            | Event::KeyDown {
+                keycode: Some(Keycode::Right),
+                ..
+            } => {
                 cpu.mem_write(0xff, 0x64);
                 // println!("{:?}", event);
             }
@@ -88,7 +122,8 @@ fn main() {
     let window = video_subsystem
         .window("Snake game", 256 * 2 as u32, 240 * 2 as u32)
         .position_centered()
-        .build().unwrap();
+        .build()
+        .unwrap();
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
     canvas.set_scale(1.0, 1.0).unwrap();
@@ -96,8 +131,8 @@ fn main() {
     // create a texture
     let creator = canvas.texture_creator();
     let mut texture = creator
-        .create_texture_target(PixelFormatEnum::RGB24, 256, 240).unwrap();
-
+        .create_texture_target(PixelFormatEnum::RGB24, 256, 240)
+        .unwrap();
 
     // let game_code: Vec<u8> = vec![0xa9, 0x01, 0x8d, 0x00, 0x02, 0xa9, 0x05, 0x8d, 0x01, 0x02, 0xa9, 0x08, 0x8d, 0x02, 0x02];
     /* let game_code: Vec<u8> = vec![
@@ -124,18 +159,16 @@ fn main() {
         0x60, 0xa2, 0x00, 0xea, 0xea, 0xca, 0xd0, 0xfb, 0x60,
     ]; */
 
-    let mut screen_state = [0 as u8; 32 * 3 * 32];
-    let mut rng = rand::thread_rng();
 
     // load the game
     let rom = load_nes("Pac-Man.nes");
 
-    let tile_frame = show_frame(&rom.chr_rom);
-    texture.update(None, &tile_frame.data, 256 * 3).unwrap();
-    canvas.copy(&texture, None, None).unwrap();
-    canvas.present();
-
-    loop {
+    let mut frame = Frame::new();
+    let mut bus = Bus::new(rom, |ppu: &NesPPU| {
+        render::render(&ppu, &mut frame);
+        texture.update(None, &frame.data, 256 * 3).unwrap();
+        canvas.copy(&texture, None, None).unwrap();
+        canvas.present();
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit {..} | Event::KeyDown {
@@ -144,14 +177,11 @@ fn main() {
                 _ => { /* do nothing */ }
             }
         }
-    }
+    });
 
-
-
-
-    let mut cpu = CPU::new(rom);
+    let mut cpu = CPU::new(bus);
     cpu.reset();
-    cpu.run_with_callbacks(move |cpu| {
+    /*cpu.run_with_callbacks(move |cpu| {
         handle_user_input(cpu, &mut event_pump);
         cpu.mem_write(0xfe, rng.gen_range(1, 16));
         if read_screen_state(cpu, &mut screen_state) {
@@ -162,6 +192,6 @@ fn main() {
 
         // ::std::thread::sleep(std::time::Duration::new(0, 500_000_000));
         ::std::thread::sleep(std::time::Duration::new(0, 70_000));
-    });
+    });*/
     println!("Hello, world!");
 }
