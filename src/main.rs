@@ -7,6 +7,7 @@ mod render;
 use crate::bus::Bus;
 use crate::bus::Mem;
 use crate::cpu::CPU;
+use crate::cpu::AddressingMode;
 use crate::ppu::NesPPU;
 use crate::render::frame::show_frame;
 use crate::render::frame::Frame;
@@ -115,6 +116,7 @@ fn load_nes(path: &str) -> Rom {
     return Rom::new(&result.unwrap()).unwrap();
 }
 
+
 fn main() {
     // init sdl2
     let sdl_context = sdl2::init().unwrap();
@@ -159,7 +161,6 @@ fn main() {
         0x60, 0xa2, 0x00, 0xea, 0xea, 0xca, 0xd0, 0xfb, 0x60,
     ]; */
 
-
     // load the game
     let rom = load_nes("Pac-Man.nes");
 
@@ -171,8 +172,10 @@ fn main() {
         canvas.present();
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit {..} | Event::KeyDown {
-                    keycode: Some(Keycode::Escape), ..
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
                 } => std::process::exit(0),
                 _ => { /* do nothing */ }
             }
@@ -181,7 +184,10 @@ fn main() {
 
     let mut cpu = CPU::new(bus);
     cpu.reset();
-    cpu.run();
+    cpu.run_with_callbacks(move |cpu| {
+        println!("{}", cpu.trace());
+    });
+    // cpu.run();
     /*cpu.run_with_callbacks(move |cpu| {
         handle_user_input(cpu, &mut event_pump);
         cpu.mem_write(0xfe, rng.gen_range(1, 16));

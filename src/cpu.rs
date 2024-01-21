@@ -3,13 +3,14 @@ use super::bus::Mem;
 use std::collections::HashMap;
 mod op;
 pub mod op_test;
+mod trace_test;
 
 #[derive(Clone)]
-struct OpCode {
-    name: String,
-    op_length: u8,
-    cycles: u8,
-    mode: AddressingMode,
+pub struct OpCode {
+    pub name: String,
+    pub op_length: u8,
+    pub cycles: u8,
+    pub mode: AddressingMode,
 }
 
 //#[derive(Clone)]
@@ -23,14 +24,14 @@ pub struct CPU<'call> {
     pub stack_counter: u8,
     pub bus: Bus<'call>,
 
-    op_map: HashMap<u8, OpCode>,
+    pub op_map: HashMap<u8, OpCode>,
 
     // crucial details about added cpu's cycles
     pub added_cycles_of_addr: u8,
     pub added_cycles_of_br: u8,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 #[allow(non_camel_case_types)]
 pub enum AddressingMode {
     Immediate,
@@ -145,7 +146,7 @@ impl<'call> Mem for CPU<'call> {
     }
 }
 
-impl<'call> CPU<'call>{
+impl<'call> CPU<'call> {
     pub fn new(bus: Bus<'call>) -> Self {
         let mut op_map: HashMap<u8, OpCode> = HashMap::new();
 
@@ -686,6 +687,11 @@ impl<'call> CPU<'call>{
             OpCode::new("SEI", 1, 2, AddressingMode::NoneAddressing),
         );
 
+        op_map.insert(
+            op::BRK,
+            OpCode::new("BRK", 1, 7, AddressingMode::NoneAddressing),
+        );
+
         CPU {
             register_a: 0,
             register_x: 0,
@@ -722,10 +728,10 @@ impl<'call> CPU<'call>{
     pub fn reset(&mut self) {
         self.register_a = 0;
         self.register_x = 0;
-        self.status = 0;
+        self.status = 0x24;
         self.program_counter = self.mem_read_u16(0xFFFC);
         /* [0x0100 .. 0x1ff] */
-        self.stack_counter = 0xff;
+        self.stack_counter = 0xfd;
     }
 
     pub fn run(&mut self) {
@@ -919,13 +925,17 @@ impl<'call> CPU<'call>{
                     "SEI" => {
                         self.sei();
                     }
+                    "BRK" => {
+                        return;
+                    }
                     _ => {
                         panic!("Internal error in op_map match~");
                     }
                 }
 
                 // propagate tick to bus
-                self.bus.tick(op.cycles + self.added_cycles_of_br + self.added_cycles_of_addr);
+                self.bus
+                    .tick(op.cycles + self.added_cycles_of_br + self.added_cycles_of_addr);
                 self.added_cycles_of_addr = 0;
                 self.added_cycles_of_br = 0;
 
@@ -937,10 +947,6 @@ impl<'call> CPU<'call>{
 
             // single address mode
             match code {
-                // op::BRK => self.brk(),
-                0x00 => {
-                    return;
-                }
                 _ => {
                     println!("{:x}", code);
                     todo!()
@@ -1565,10 +1571,10 @@ impl<'call> CPU<'call>{
     fn interrupt_nmi(&mut self) {
         self.push_u16(self.program_counter);
         StatusFlag::BreakCommand.add(&mut self.status);
-        
+
         let mut flag = self.status.clone();
         StatusFlag::BreakCommand.add(&mut flag);
-        
+
         self.push(flag);
         StatusFlag::InterruptDisable.add(&mut self.status);
 
@@ -1576,7 +1582,7 @@ impl<'call> CPU<'call>{
         self.program_counter = self.mem_read_u16(0xfffa);
     }
 
-    fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
+    pub fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.program_counter,
 
@@ -1626,7 +1632,6 @@ impl<'call> CPU<'call>{
             AddressingMode::Indirect_Y => {
                 let base = self.mem_read(self.program_counter);
 
-                //todo: check let ptr: u8 = (base as u8).wrapping_add(self.register_y);
                 // this is similar to Absolute_Y
                 let lo = self.mem_read(base as u16);
                 let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
@@ -1647,6 +1652,90 @@ impl<'call> CPU<'call>{
         }
     }
 
+    pub fn trace(&mut self) -> String {
+        let pc = self.program_counter;
+        let mut res = format!("{:0>4X}  ", pc);
+
+        let op = self.mem_read(pc);
+        let opcode = &self.op_map[&op];
+
+        let name = &opcode.name.clone();
+        let op_length = opcode.op_length;
+        let mode = opcode.mode;
+
+        let mut code_res = String::from("");
+        for i in 0..op_length {
+            if i > 0 {
+                code_res.push(' ');
+            }
+            code_res.push_str(&format!("{:02X}", self.mem_read(pc + (i as u16))));
+        }
+        while code_res.len() < 10 {
+            code_res.push(' ');
+        }
+
+        res.push_str(format!("{}{} ", code_res, name).as_str());
+
+        let mut addr_res = String::from("");
+        self.program_counter += 1;
+        match mode {
+            AddressingMode::Immediate => {
+                let addr = self.get_operand_address(&mode);
+                addr_res.push_str(&format!("#${:02X}", self.mem_read(addr)));
+            }
+            AddressingMode::Indirect_X => {
+                let addr = self.get_operand_address(&mode);
+                let p_addr = self.mem_read(self.program_counter);
+                let r_addr = p_addr.wrapping_add(self.register_x);
+                addr_res.push_str(&format!(
+                    "(${:02X},X) @ {:02X} = {:02X}{:02X} = {:02X}",
+                    p_addr,
+                    r_addr,
+                    r_addr + 1,
+                    r_addr,
+                    self.mem_read(addr)
+                ));
+            }
+            AddressingMode::Indirect_Y => {
+                let addr = self.get_operand_address(&mode);
+                let base = self.mem_read(self.program_counter);
+
+                let lo = self.mem_read(base as u16);
+                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
+                let deref_base = (hi as u16) << 8 | (lo as u16);
+                let deref = deref_base.wrapping_add(self.register_y as u16);
+                if deref_base & 0xff00 != deref & 0xff00 {
+                    self.added_cycles_of_addr += 1;
+                }
+
+                addr_res.push_str(&format!(
+                    "(${:02X}),Y = {:02X}{:02X} @ {:02X}{:02X} = {:02X}",
+                    base,
+                    deref >> 8,
+                    deref & 0xff,
+                    deref >> 8,
+                    deref & 0xff,
+                    self.mem_read(addr)
+                ));
+            }
+            AddressingMode::NoneAddressing => {
+                // empty
+            }
+            _ => {
+                let addr = self.get_operand_address(&mode);
+                addr_res.push_str(format!("${:X}", addr).as_str());
+                // panic!("never come here");
+            }
+        };
+        self.program_counter -= 1;
+        res.push_str(&format!("{:<28}", addr_res));
+        res.push_str(&format!(
+            "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
+            self.register_a, self.register_x, self.register_y, self.status, self.stack_counter
+        ));
+        res
+    }
+
     pub fn negative(&self) -> bool {
         return StatusFlag::Negative.among(self.status);
     }
@@ -1657,6 +1746,7 @@ impl<'call> CPU<'call>{
         return StatusFlag::Overflow.among(self.status);
     }
 }
+
 pub const LDA_IMMEDIATE: u8 = 0xa9u8;
 pub const LDA_ZEROPAGE: u8 = 0xa5u8;
 pub const LDA_ABSOLUTE: u8 = 0xadu8;
