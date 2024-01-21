@@ -743,9 +743,9 @@ impl<'call> CPU<'call>{
 
             callback(self);
 
-            if self.program_counter < self.mem_read_u16(0xFFFC) {
+            /*if self.program_counter < self.mem_read_u16(0xFFFC) {
                 panic!("invalid program_counter:{}", self.program_counter);
-            }
+            }*/
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
             let old_pc = self.program_counter;

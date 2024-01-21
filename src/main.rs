@@ -181,6 +181,7 @@ fn main() {
 
     let mut cpu = CPU::new(bus);
     cpu.reset();
+    cpu.run();
     /*cpu.run_with_callbacks(move |cpu| {
         handle_user_input(cpu, &mut event_pump);
         cpu.mem_write(0xfe, rng.gen_range(1, 16));

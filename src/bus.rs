@@ -49,7 +49,20 @@ impl<'call> Bus<'call> {
 
     pub fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
+        let mut nmi_before:bool = false;
+        if Some(true) == self.ppu.nmi_interrupt {
+            nmi_before = true;
+        }
         self.ppu.tick(cycles * 3);
+
+        let mut nmi_after:bool = false;
+        if Some(true) == self.ppu.nmi_interrupt {
+            nmi_after = true;
+        }
+
+        if !nmi_before && nmi_after {
+            (self.gameloop_callback)(&self.ppu);
+        }
     }
 
     pub fn poll_nmi_status(&mut self) -> bool {
