@@ -34,7 +34,14 @@ pub const TXS:u8 = 0x9a;
 pub const TYA:u8 = 0x98;
 
 pub const BMI:u8 = 0x30;
+
+pub const BPL:u8 = 0x10;
+pub const BVC:u8 = 0x50;
+pub const BVS:u8 = 0x70;
+pub const BCC:u8 = 0x90;
+pub const BCS:u8 = 0xb0;
 pub const BNE:u8 = 0xd0;
+pub const BEQ:u8 = 0xf0;
 
 pub const ASL:u8 = 0x0a;
 pub const LSR:u8 = 0x4a;

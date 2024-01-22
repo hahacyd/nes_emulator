@@ -56,8 +56,9 @@ enum StatusFlag {
     InterruptDisable = 0b0000_0100,
     DecimalMode = 0b0000_1000,
     BreakCommand = 0b0001_0000,
-    Overflow = 0b0010_0000,
-    Negative = 0b0100_0000,
+    Undefined = 0b0010_0000,
+    Overflow = 0b0100_0000,
+    Negative = 0b1000_0000,
 }
 
 impl StatusFlag {
@@ -584,6 +585,9 @@ impl<'call> CPU<'call> {
         // BVS
         op_map.insert(0x70, OpCode::new("BVS", 2, 2, AddressingMode::Immediate));
 
+        // BMI
+        op_map.insert(op::BMI, OpCode::new("BMI", 2, 2, AddressingMode::Immediate));
+
         op_map.insert(
             op::PHA,
             OpCode::new("PHA", 1, 3, AddressingMode::NoneAddressing),
@@ -612,7 +616,7 @@ impl<'call> CPU<'call> {
 
         op_map.insert(
             op::JSR,
-            OpCode::new("JSR", 3, 6, AddressingMode::NoneAddressing),
+            OpCode::new("JSR", 3, 6, AddressingMode::Absolute),
         );
         op_map.insert(
             op::TAX,
@@ -1105,7 +1109,7 @@ impl<'call> CPU<'call> {
     fn cal_displacement_and_add_cycles(&mut self, mode: &AddressingMode) -> (u8, u16) {
         let addr = self.get_operand_address(&mode);
         let value = self.mem_read(addr);
-        let result = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
+        let result = ((self.program_counter as i16) + ((value as i8) as i16)) as u16 + 1;
 
         // the '1' added to program_counter is the second byte of branch instruction
         let mut addr_cycles = 0;
@@ -1322,6 +1326,12 @@ impl<'call> CPU<'call> {
         } else {
             StatusFlag::Zero.remove(&mut self.status);
         }
+
+        if self.register_a & 0x80 == value & 0x80 {
+            StatusFlag::Negative.remove(&mut self.status);
+        } else {
+            StatusFlag::Negative.add(&mut self.status);
+        }
     }
 
     fn cpx(&mut self, mode: &AddressingMode) {
@@ -1338,6 +1348,11 @@ impl<'call> CPU<'call> {
         } else {
             StatusFlag::Zero.remove(&mut self.status);
         }
+        if self.register_x & 0x80 == value & 0x80 {
+            StatusFlag::Negative.remove(&mut self.status);
+        } else {
+            StatusFlag::Negative.add(&mut self.status);
+        }
     }
 
     fn cpy(&mut self, mode: &AddressingMode) {
@@ -1353,6 +1368,11 @@ impl<'call> CPU<'call> {
             StatusFlag::Zero.add(&mut self.status);
         } else {
             StatusFlag::Zero.remove(&mut self.status);
+        }
+        if self.register_y & 0x80 == value & 0x80 {
+            StatusFlag::Negative.remove(&mut self.status);
+        } else {
+            StatusFlag::Negative.add(&mut self.status);
         }
     }
 
@@ -1401,6 +1421,9 @@ impl<'call> CPU<'call> {
 
     fn plp(&mut self) {
         self.status = self.pop();
+        // FIXME: from nestest, status should remove BreakCommand
+        StatusFlag::BreakCommand.remove(&mut self.status);
+        StatusFlag::Undefined.add(&mut self.status);
     }
 
     fn rti(&mut self) {
@@ -1665,7 +1688,11 @@ impl<'call> CPU<'call> {
         let mut res = format!("{:0>4X}  ", pc);
 
         let op = self.mem_read(pc);
-        let opcode = &self.op_map[&op];
+        let opcode_v = &self.op_map.get(&op);
+        if opcode_v.is_none() {
+            eprintln!("opcode {:X} no implemented! ", op);
+        }
+        let opcode = opcode_v.unwrap();
 
         let name = &opcode.name.clone();
         let op_length = opcode.op_length;
@@ -1687,6 +1714,14 @@ impl<'call> CPU<'call> {
         let mut addr_res = String::from("");
         self.program_counter += 1;
         match mode {
+            AddressingMode::Absolute => {
+                let addr = self.get_operand_address(&mode);
+                addr_res.push_str(&format!("${:04X}", addr));
+            }
+            AddressingMode::ZeroPage => {
+                let addr = self.get_operand_address(&mode);
+                addr_res.push_str(&format!("${:02X} = {:02X}", addr, self.mem_read(addr)));
+            }
             AddressingMode::Immediate => {
                 let addr = self.get_operand_address(&mode);
                 addr_res.push_str(&format!("#${:02X}", self.mem_read(addr)));
@@ -1735,8 +1770,17 @@ impl<'call> CPU<'call> {
                 // panic!("never come here");
             }
         };
+        match op {
+            op::BCC | op::BCS | op::BEQ | op::BNE | op::BPL | op::BVC | op::BVS | op::BMI => {
+                let (_, dest) = self.cal_displacement_and_add_cycles(&mode);
+                let dest_str = format!("${:02X}", dest);
+                res.push_str(&format!("{:<28}", dest_str));
+            } 
+            _ => {
+                res.push_str(&format!("{:<28}", addr_res));
+            }
+        }
         self.program_counter -= 1;
-        res.push_str(&format!("{:<28}", addr_res));
         res.push_str(&format!(
             "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
             self.register_a, self.register_x, self.register_y, self.status, self.stack_counter
