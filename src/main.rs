@@ -13,6 +13,7 @@ use crate::render::frame::show_frame;
 use crate::render::frame::Frame;
 use cartridge::Rom;
 use std::fs;
+use std::process::exit;
 
 use rand::Rng;
 use sdl2::event::Event;
@@ -162,7 +163,8 @@ fn main() {
     ]; */
 
     // load the game
-    let rom = load_nes("Pac-Man.nes");
+    // let rom = load_nes("Pac-Man.nes");
+    let rom = load_nes("/home/yadong/study/nes/nestest.nes");
 
     let mut frame = Frame::new();
     let mut bus = Bus::new(rom, |ppu: &NesPPU| {
@@ -182,10 +184,15 @@ fn main() {
         }
     });
 
+    let mut count = 0;
     let mut cpu = CPU::new(bus);
     cpu.reset();
     cpu.run_with_callbacks(move |cpu| {
+        count += 1;
         println!("{}", cpu.trace());
+        if count > 100 {
+            exit(-1);
+        }
     });
     // cpu.run();
     /*cpu.run_with_callbacks(move |cpu| {
@@ -200,5 +207,4 @@ fn main() {
         // ::std::thread::sleep(std::time::Duration::new(0, 500_000_000));
         ::std::thread::sleep(std::time::Duration::new(0, 70_000));
     });*/
-    println!("Hello, world!");
 }

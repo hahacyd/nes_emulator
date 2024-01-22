@@ -47,8 +47,8 @@ impl Rom {
         let prg_rom_start = 16 + if skip_trainer { 512 } else {0};
         let chr_rom_start = prg_rom_start + prg_rom_size;
         
-        println!("prg_rom start at: 0x{:x} size: 0x{:x}", prg_rom_start, prg_rom_size);
-        println!("chr_rom start at: 0x{:x} size: 0x{:x}", chr_rom_start, chr_rom_size);
+        eprintln!("prg_rom start at: 0x{:x} size: 0x{:x}", prg_rom_start, prg_rom_size);
+        eprintln!("chr_rom start at: 0x{:x} size: 0x{:x}", chr_rom_start, chr_rom_size);
         Ok(Rom {
             prg_rom: raw[prg_rom_start..(prg_rom_start + prg_rom_size)].to_vec(),
             chr_rom: raw[chr_rom_start..(chr_rom_start + chr_rom_size)].to_vec(),

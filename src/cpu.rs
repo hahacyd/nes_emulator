@@ -730,6 +730,7 @@ impl<'call> CPU<'call> {
         self.register_x = 0;
         self.status = 0x24;
         self.program_counter = self.mem_read_u16(0xFFFC);
+        eprintln!("program_counter: 0x{:X}", self.program_counter);
         /* [0x0100 .. 0x1ff] */
         self.stack_counter = 0xfd;
     }
@@ -1101,67 +1102,74 @@ impl<'call> CPU<'call> {
         self.update_zero_and_negative_flags(self.register_a);
     }
 
-    fn cal_displacement_and_add_cycles(&mut self, mode: &AddressingMode) {
-        // +1 for the successful branch
-        self.added_cycles_of_br += 1;
-
+    fn cal_displacement_and_add_cycles(&mut self, mode: &AddressingMode) -> (u8, u16) {
         let addr = self.get_operand_address(&mode);
         let value = self.mem_read(addr);
         let result = ((self.program_counter as i16) + ((value as i8) as i16)) as u16;
 
         // the '1' added to program_counter is the second byte of branch instruction
+        let mut addr_cycles = 0;
         if (self.program_counter + 1) & 0xff00 != result & 0xff00 {
             // +1 for cross page
-            self.added_cycles_of_addr += 1;
+            addr_cycles += 1;
         }
-        self.program_counter = result;
+        (addr_cycles, result)
+    }
+
+    fn branch_jump(&mut self, mode: &AddressingMode) {
+        let (addr_cycles, dest) = self.cal_displacement_and_add_cycles(&mode);
+        self.added_cycles_of_addr += addr_cycles;
+
+        // +1 for the successful branch
+        self.added_cycles_of_br += 1;
+        self.program_counter = dest;
     }
 
     fn bcc(&mut self, mode: &AddressingMode) {
         if !StatusFlag::Carry.among(self.status) {
-            self.cal_displacement_and_add_cycles(&mode);
+            self.branch_jump(&mode);
         }
     }
 
     fn bcs(&mut self, mode: &AddressingMode) {
         if StatusFlag::Carry.among(self.status) {
-            self.cal_displacement_and_add_cycles(&mode);
+            self.branch_jump(&mode);
         }
     }
 
     fn beq(&mut self, mode: &AddressingMode) {
         if StatusFlag::Zero.among(self.status) {
-            self.cal_displacement_and_add_cycles(&mode);
+            self.branch_jump(&mode);
         }
     }
 
     fn bne(&mut self, mode: &AddressingMode) {
         if !StatusFlag::Zero.among(self.status) {
-            self.cal_displacement_and_add_cycles(&mode);
+            self.branch_jump(&mode);
         }
     }
 
     fn bmi(&mut self, mode: &AddressingMode) {
         if StatusFlag::Negative.among(self.status) {
-            self.cal_displacement_and_add_cycles(&mode);
+            self.branch_jump(&mode);
         }
     }
 
     fn bpl(&mut self, mode: &AddressingMode) {
         if !StatusFlag::Negative.among(self.status) {
-            self.cal_displacement_and_add_cycles(&mode);
+            self.branch_jump(&mode);
         }
     }
 
     fn bvc(&mut self, mode: &AddressingMode) {
         if !StatusFlag::Overflow.among(self.status) {
-            self.cal_displacement_and_add_cycles(&mode);
+            self.branch_jump(&mode);
         }
     }
 
     fn bvs(&mut self, mode: &AddressingMode) {
         if StatusFlag::Overflow.among(self.status) {
-            self.cal_displacement_and_add_cycles(&mode);
+            self.branch_jump(&mode);
         }
     }
 
