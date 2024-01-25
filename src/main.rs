@@ -190,9 +190,9 @@ fn main() {
     cpu.run_with_callbacks(move |cpu| {
         count += 1;
         println!("{}", cpu.trace());
-        if count > 400 {
+        /*if count > 0x4000000 {
             exit(-1);
-        }
+        }*/
     });
     // cpu.run();
     /*cpu.run_with_callbacks(move |cpu| {

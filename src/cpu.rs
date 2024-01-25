@@ -614,10 +614,7 @@ impl<'call> CPU<'call> {
             OpCode::new("RTS", 1, 6, AddressingMode::NoneAddressing),
         );
 
-        op_map.insert(
-            op::JSR,
-            OpCode::new("JSR", 3, 6, AddressingMode::Absolute),
-        );
+        op_map.insert(op::JSR, OpCode::new("JSR", 3, 6, AddressingMode::Absolute));
         op_map.insert(
             op::TAX,
             OpCode::new("TAX", 1, 2, AddressingMode::NoneAddressing),
@@ -997,20 +994,28 @@ impl<'call> CPU<'call> {
     }
 
     fn add_rega_and_value(&mut self, value: u8) {
-        let (result, carry) = self.register_a.overflowing_add(value);
-        if carry {
+        let o_carry = StatusFlag::Carry.test(self.status);
+        let carry_value = if o_carry { 1 } else { 0 };
+
+        let (result, carry1) = self.register_a.overflowing_add(value);
+        let (_, carry2) = result.overflowing_add(carry_value);
+
+        let (result, overflowed1) = (self.register_a as i8).overflowing_add(value as i8);
+        let (result, overflowed2) = (result as i8).overflowing_add(carry_value as i8);
+
+        if carry1 | carry2 {
             StatusFlag::Carry.add(&mut self.status);
         } else {
             StatusFlag::Carry.remove(&mut self.status);
         }
 
-        let (_, overflowed) = (self.register_a as i8).overflowing_add(value as i8);
-        if overflowed {
+        if overflowed1 | overflowed2 {
             StatusFlag::Overflow.add(&mut self.status);
         } else {
             StatusFlag::Overflow.remove(&mut self.status);
         }
-        self.register_a = result;
+
+        self.register_a = result as u8;
         self.update_zero_and_negative_flags(self.register_a);
     }
 
@@ -1020,10 +1025,37 @@ impl<'call> CPU<'call> {
         self.add_rega_and_value(value);
     }
 
+    fn sub_rega_and_value(&mut self, value: u8) {
+        let o_carry = StatusFlag::Carry.test(self.status);
+        let carry_value = if o_carry { 0 } else { 1 };
+
+        let (result, carry1) = self.register_a.overflowing_sub(value);
+        let (_, carry2) = result.overflowing_sub(carry_value);
+
+        let (result, overflowed1) = (self.register_a as i8).overflowing_sub(value as i8);
+        let (result, overflowed2) = (result as i8).overflowing_sub(carry_value as i8);
+
+        // important: below is different from add
+        if carry1 | carry2 {
+            StatusFlag::Carry.remove(&mut self.status);
+        } else {
+            StatusFlag::Carry.add(&mut self.status);
+        }
+
+        if overflowed1 | overflowed2 {
+            StatusFlag::Overflow.add(&mut self.status);
+        } else {
+            StatusFlag::Overflow.remove(&mut self.status);
+        }
+
+        self.register_a = result as u8;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
     fn sbc(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         let value = self.mem_read(addr);
-        self.add_rega_and_value(!value + 1);
+        self.sub_rega_and_value(value);
     }
 
     /*
@@ -1321,17 +1353,8 @@ impl<'call> CPU<'call> {
         } else {
             StatusFlag::Carry.remove(&mut self.status);
         }
-        if self.register_a == value {
-            StatusFlag::Zero.add(&mut self.status);
-        } else {
-            StatusFlag::Zero.remove(&mut self.status);
-        }
 
-        if self.register_a & 0x80 == value & 0x80 {
-            StatusFlag::Negative.remove(&mut self.status);
-        } else {
-            StatusFlag::Negative.add(&mut self.status);
-        }
+        self.update_zero_and_negative_flags(self.register_a.wrapping_sub(value));
     }
 
     fn cpx(&mut self, mode: &AddressingMode) {
@@ -1343,16 +1366,8 @@ impl<'call> CPU<'call> {
         } else {
             StatusFlag::Carry.remove(&mut self.status);
         }
-        if self.register_x == value {
-            StatusFlag::Zero.add(&mut self.status);
-        } else {
-            StatusFlag::Zero.remove(&mut self.status);
-        }
-        if self.register_x & 0x80 == value & 0x80 {
-            StatusFlag::Negative.remove(&mut self.status);
-        } else {
-            StatusFlag::Negative.add(&mut self.status);
-        }
+
+        self.update_zero_and_negative_flags(self.register_x.wrapping_sub(value));
     }
 
     fn cpy(&mut self, mode: &AddressingMode) {
@@ -1364,16 +1379,7 @@ impl<'call> CPU<'call> {
         } else {
             StatusFlag::Carry.remove(&mut self.status);
         }
-        if self.register_y == value {
-            StatusFlag::Zero.add(&mut self.status);
-        } else {
-            StatusFlag::Zero.remove(&mut self.status);
-        }
-        if self.register_y & 0x80 == value & 0x80 {
-            StatusFlag::Negative.remove(&mut self.status);
-        } else {
-            StatusFlag::Negative.add(&mut self.status);
-        }
+        self.update_zero_and_negative_flags(self.register_y.wrapping_sub(value));
     }
 
     fn dec(&mut self, mode: &AddressingMode) {
@@ -1431,6 +1437,8 @@ impl<'call> CPU<'call> {
 
         StatusFlag::BreakCommand.remove(&mut self.status);
 
+        StatusFlag::Undefined.add(&mut self.status);
+
         // todo: need verify from spec
         self.program_counter = self.pop_u16();
     }
@@ -1447,7 +1455,7 @@ impl<'call> CPU<'call> {
             self.program_counter = addr;
         } else {
             assert!(*mode == AddressingMode::Indirect);
-            self.program_counter = self.mem_read_u16(addr);
+            self.program_counter = addr;
         }
     }
 
@@ -1554,8 +1562,8 @@ impl<'call> CPU<'call> {
     fn push_u16(&mut self, value: u16) {
         let lo: u8 = (value & 0xff) as u8;
         let hi: u8 = ((value >> 8) & 0xff) as u8;
-        self.push(lo);
         self.push(hi);
+        self.push(lo);
     }
 
     fn push(&mut self, value: u8) {
@@ -1568,11 +1576,9 @@ impl<'call> CPU<'call> {
     }
 
     fn pop_u16(&mut self) -> u16 {
-        let mut result: u16;
-        result = self.pop() as u16;
-        result <<= 8;
-        result |= self.pop() as u16;
-        return result;
+        let lo = self.pop() as u16;
+        let hi = self.pop() as u16;
+        return hi << 8 | lo;
     }
 
     fn pop(&mut self) -> u8 {
@@ -1675,7 +1681,15 @@ impl<'call> CPU<'call> {
             }
 
             AddressingMode::Indirect => {
-                todo!();
+                let base = self.mem_read_u16(self.program_counter);
+                let lo = self.mem_read(base);
+                let mut hi = self.mem_read(base.wrapping_add(1));
+                if base & 0xff == 0xff {
+                    // note:
+                    // An original 6502 has does not correctly fetch the target address if the indirect vector falls on a page boundary (e.g. $xxFF where xx is any value from $00 to $FF). In this case fetches the LSB from $xxFF as expected but takes the MSB from $xx00. This is fixed in some later chips like the 65SC02 so for compatibility always ensure the indirect vector is not at the end of the page.
+                    hi = self.mem_read(base & 0xff00);
+                }
+                return (hi as u16) << 8 | lo as u16;
             }
             AddressingMode::NoneAddressing => {
                 panic!("mode {:?} is not supported", mode);
@@ -1713,14 +1727,84 @@ impl<'call> CPU<'call> {
 
         let mut addr_res = String::from("");
         self.program_counter += 1;
+
         match mode {
             AddressingMode::Absolute => {
                 let addr = self.get_operand_address(&mode);
-                addr_res.push_str(&format!("${:04X}", addr));
+                match op {
+                    op::JMP
+                    | op::JSR
+                    | op::BCC
+                    | op::BCS
+                    | op::BEQ
+                    | op::BNE
+                    | op::BPL
+                    | op::BVC
+                    | op::BVS
+                    | op::BMI => {
+                        addr_res.push_str(&format!("${:04X}", addr));
+                    }
+                    _ => {
+                        addr_res.push_str(&format!("${:04X} = {:02X}", addr, self.mem_read(addr)));
+                    }
+                }
             }
             AddressingMode::ZeroPage => {
                 let addr = self.get_operand_address(&mode);
-                addr_res.push_str(&format!("${:02X} = {:02X}", addr, self.mem_read(addr)));
+                match op {
+                    /*op::STX => {
+                        addr_res.push_str(&format!("${:02X} = {:02X}", addr, self.register_x));
+                    }
+                    op::STY => {
+                        addr_res.push_str(&format!("${:02X} = {:02X}", addr, self.register_y));
+                    }
+                    op::STA => {
+                        addr_res.push_str(&format!("${:02X} = {:02X}", addr, self.register_a));
+                    }*/
+                    _ => {
+                        addr_res.push_str(&format!("${:02X} = {:02X}", addr, self.mem_read(addr)));
+                    }
+                }
+            }
+            AddressingMode::ZeroPage_X => {
+                let base = self.mem_read(self.program_counter);
+                let addr = base.wrapping_add(self.register_x);
+                addr_res.push_str(&format!(
+                    "${:02X},X @ {:02X} = {:02X}",
+                    base,
+                    addr,
+                    self.mem_read(addr as u16),
+                ));
+            }
+            AddressingMode::ZeroPage_Y => {
+                let base = self.mem_read(self.program_counter);
+                let addr = base.wrapping_add(self.register_y);
+                addr_res.push_str(&format!(
+                    "${:02X},Y @ {:02X} = {:02X}",
+                    base,
+                    addr,
+                    self.mem_read(addr as u16),
+                ));
+            }
+            AddressingMode::Absolute_Y => {
+                let base = self.mem_read_u16(self.program_counter);
+                let addr = base.wrapping_add(self.register_y as u16);
+                addr_res.push_str(&format!(
+                    "${:04X},Y @ {:04X} = {:02X}",
+                    base,
+                    addr,
+                    self.mem_read(addr)
+                ));
+            }
+            AddressingMode::Absolute_X => {
+                let base = self.mem_read_u16(self.program_counter);
+                let addr = base.wrapping_add(self.register_x as u16);
+                addr_res.push_str(&format!(
+                    "${:04X},X @ {:04X} = {:02X}",
+                    base,
+                    addr,
+                    self.mem_read(addr)
+                ));
             }
             AddressingMode::Immediate => {
                 let addr = self.get_operand_address(&mode);
@@ -1731,11 +1815,10 @@ impl<'call> CPU<'call> {
                 let p_addr = self.mem_read(self.program_counter);
                 let r_addr = p_addr.wrapping_add(self.register_x);
                 addr_res.push_str(&format!(
-                    "(${:02X},X) @ {:02X} = {:02X}{:02X} = {:02X}",
+                    "(${:02X},X) @ {:02X} = {:04X} = {:02X}",
                     p_addr,
                     r_addr,
-                    r_addr + 1,
-                    r_addr,
+                    addr,
                     self.mem_read(addr)
                 ));
             }
@@ -1754,12 +1837,18 @@ impl<'call> CPU<'call> {
                 addr_res.push_str(&format!(
                     "(${:02X}),Y = {:02X}{:02X} @ {:02X}{:02X} = {:02X}",
                     base,
-                    deref >> 8,
-                    deref & 0xff,
+                    hi,
+                    lo,
                     deref >> 8,
                     deref & 0xff,
                     self.mem_read(addr)
                 ));
+            }
+            AddressingMode::Indirect => {
+                let addr = self.get_operand_address(&mode);
+
+                let base = self.mem_read_u16(self.program_counter);
+                addr_res.push_str(&format!("(${:04X}) = {:04X}", base, addr,));
             }
             AddressingMode::NoneAddressing => {
                 // empty
@@ -1775,7 +1864,7 @@ impl<'call> CPU<'call> {
                 let (_, dest) = self.cal_displacement_and_add_cycles(&mode);
                 let dest_str = format!("${:02X}", dest);
                 res.push_str(&format!("{:<28}", dest_str));
-            } 
+            }
             _ => {
                 res.push_str(&format!("{:<28}", addr_res));
             }

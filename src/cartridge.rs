@@ -61,9 +61,9 @@ impl Rom {
 // for test
 pub fn prepare_rom(ops: Vec<u8>) -> Rom {
     let mut prg_rom = [0; 0x4000];
-    prg_rom[0x600..0x600 + ops.len()].copy_from_slice(ops.as_slice());
+    prg_rom[0..ops.len()].copy_from_slice(ops.as_slice());
     prg_rom[0x3FFC] = 0x00;
-    prg_rom[0x3FFD] = 0x06;
+    prg_rom[0x3FFD] = 0x80;
     return Rom {
         prg_rom: prg_rom.to_vec(),
         chr_rom: [].to_vec(),

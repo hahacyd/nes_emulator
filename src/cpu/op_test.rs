@@ -125,31 +125,67 @@ fn test_adc_overflow_and_carry() {
 }
 
 #[test]
-fn test_sbc() {
-    let rom = prepare_rom(vec![0x69, 0x02, /* 2 */ 0xe9, 0x01, 0x00]);
+fn test_adc_carry() {
+    // test carry
+    let rom = prepare_rom(vec![op::SEC, op::LDA_I, 0x00, op::ADC_I, 0x00, 0x00]);
     let mut cpu = CPU::new(Bus::new(rom, |ppu: &NesPPU|{}));
     cpu.load_and_run();
-    assert_eq!(cpu.register_a, 1);
-    assert_eq!(cpu.status & StatusFlag::Carry, StatusFlag::Carry);
-    assert_eq!(cpu.status & StatusFlag::Overflow, 0);
+    assert!(!StatusFlag::Carry.test(cpu.status));
+    assert_eq!(cpu.register_a, 0x1);
+
+    let rom = prepare_rom(vec![op::CLC, op::LDA_I, 0x00, op::ADC_I, 0x00, 0x00]);
+    let mut cpu = CPU::new(Bus::new(rom, |ppu: &NesPPU|{}));
+    cpu.load_and_run();
+    assert!(!StatusFlag::Carry.test(cpu.status));
+    assert_eq!(cpu.register_a, 0x0);
+}
+
+#[test]
+fn test_sbc() {
+    let rom = prepare_rom(vec![op::LDA_I, 0x02, /* 2 */ op::SBC_I, 0x01, 0x00]);
+    let mut cpu = CPU::new(Bus::new(rom, |ppu: &NesPPU|{}));
+    cpu.load_and_run();
+    assert_eq!(cpu.register_a, 0);
+    assert!(StatusFlag::Carry.test(cpu.status));
+    assert!(!StatusFlag::Overflow.test(cpu.status));
 }
 
 #[test]
 fn test_sbc_overflow_and_carry() {
     // test carry: if overflow with unsigned, clear carry flag
     // todo: does sbc perform signed minus?
-    let rom = prepare_rom(vec![0xe9, 0x01, 0x00]);
+    let rom = prepare_rom(vec![op::SBC_I, 0x01, 0x00]);
     let mut cpu = CPU::new(Bus::new(rom, |ppu: &NesPPU|{}));
     cpu.load_and_run();
-    assert_eq!(cpu.status & StatusFlag::Carry, 0);
-    assert_eq!(cpu.register_a, 255);
+    assert!(!StatusFlag::Carry.test(cpu.status));
+    assert_eq!(cpu.register_a, 254);
+    assert!(!StatusFlag::Overflow.test(cpu.status));
 
     // test overflow with signed
-    let rom = prepare_rom(vec![0x69, 0x7f, /* 0x7f */ 0xe9, 0xff, 0x00]);
+    let rom = prepare_rom(vec![op::LDA_I, 0x7f, /* 0x7f */ 0xe9, 0xff, 0x00]);
     let mut cpu = CPU::new(Bus::new(rom, |ppu: &NesPPU|{}));
     cpu.load_and_run();
-    assert_eq!(cpu.status & StatusFlag::Overflow, StatusFlag::Overflow);
-    assert_eq!(cpu.register_a, 0x80);
+    assert!(StatusFlag::Overflow.test(cpu.status));
+    assert!(!StatusFlag::Carry.test(cpu.status));
+    assert_eq!(cpu.register_a, 0x7f);
+}
+
+#[test]
+fn test_sbc_carry() {
+    // test carry
+    let rom = prepare_rom(vec![op::SEC, op::LDA_I, 0x01, op::SBC_I, 0x00, 0x00]);
+    let mut cpu = CPU::new(Bus::new(rom, |ppu: &NesPPU|{}));
+    cpu.load_and_run();
+    assert!(StatusFlag::Carry.test(cpu.status));
+    assert!(!StatusFlag::Overflow.test(cpu.status));
+    assert_eq!(cpu.register_a, 0x1);
+
+    let rom = prepare_rom(vec![op::CLC, op::LDA_I, 0x01, op::SBC_I, 0x00, 0x00]);
+    let mut cpu = CPU::new(Bus::new(rom, |ppu: &NesPPU|{}));
+    cpu.load_and_run();
+    assert!(StatusFlag::Carry.test(cpu.status));
+    assert!(!StatusFlag::Overflow.test(cpu.status));
+    assert_eq!(cpu.register_a, 0x0);
 }
 
 #[test]
@@ -696,7 +732,7 @@ fn test_jsr_rts() {
     let rom = prepare_rom(vec![
         op::JSR,
         0x05,
-        0x06,
+        0x80,
         op::INY,
         op::BRK,
         op::LDX,

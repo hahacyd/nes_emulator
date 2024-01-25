@@ -21,11 +21,11 @@ impl<'call> Bus<'call> {
         let mut cpu_vram: [u8; 2048] = [0; 2048];
         let cpu_vram_len = cpu_vram.len();
         let rom_prg_len = rom.prg_rom.len();
-        if rom_prg_len > cpu_vram_len {
+        /*if rom_prg_len > cpu_vram_len {
             cpu_vram.copy_from_slice(&rom.prg_rom[..cpu_vram_len]);
         } else {
             cpu_vram.copy_from_slice(&rom.prg_rom[..rom_prg_len]);
-        }
+        }*/
 
         let ppu = NesPPU::new(rom.chr_rom.clone(), rom.screen_mirroring);
         Bus {
