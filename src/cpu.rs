@@ -25,6 +25,7 @@ pub struct CPU<'call> {
     pub bus: Bus<'call>,
 
     pub op_map: HashMap<u8, OpCode>,
+    pub uop_map: HashMap<u8, OpCode>,
 
     // crucial details about added cpu's cycles
     pub added_cycles_of_addr: u8,
@@ -102,6 +103,8 @@ impl BitAnd<StatusFlag> for u8 {
 }
 
 use std::ops::BitOr;
+use std::ops::Shr;
+use std::ops::ShrAssign;
 impl BitOr<u8> for StatusFlag {
     type Output = u8;
     fn bitor(self, rhs: u8) -> Self::Output {
@@ -150,6 +153,7 @@ impl<'call> Mem for CPU<'call> {
 impl<'call> CPU<'call> {
     pub fn new(bus: Bus<'call>) -> Self {
         let mut op_map: HashMap<u8, OpCode> = HashMap::new();
+        let mut uop_map: HashMap<u8, OpCode> = HashMap::new();
 
         // LDA:
         op_map.insert(0xa9, OpCode::new("LDA", 2, 2, AddressingMode::Immediate));
@@ -693,6 +697,248 @@ impl<'call> CPU<'call> {
             OpCode::new("BRK", 1, 7, AddressingMode::NoneAddressing),
         );
 
+        // unofficial opcodes
+        // AND byte with accumulator. If result is negative then carry is set. Status flags: N,Z,C
+        uop_map.insert(0x0b, OpCode::new("AAC", 2, 2, AddressingMode::Immediate));
+        uop_map.insert(0x2b, OpCode::new("AAC", 2, 2, AddressingMode::Immediate));
+
+        // AND X register with accumulator and store result in memory. Status flags: N,Z
+        uop_map.insert(0x87, OpCode::new("AAX", 2, 3, AddressingMode::ZeroPage));
+        uop_map.insert(0x97, OpCode::new("AAX", 2, 4, AddressingMode::ZeroPage_Y));
+        uop_map.insert(0x83, OpCode::new("AAX", 2, 6, AddressingMode::Indirect_X));
+        uop_map.insert(0x8f, OpCode::new("AAX", 3, 4, AddressingMode::Absolute));
+
+        // AND byte with accumulator, then rotate one bit right in accu-mulator and
+        // check bit 5 and 6:
+        // If both bits are 1: set C, clear V.
+        // If both bits are 0: clear C and V.
+        // If only bit 5 is 1: set V, clear C.
+        // If only bit 6 is 1: set C and V.
+        // Status flags: N,V,Z,C
+        uop_map.insert(0x6b, OpCode::new("ARR", 2, 2, AddressingMode::Immediate));
+
+        // AND byte with accumulator, then shift right one bit in accumu-lator.
+        // Status flags: N,Z,C
+        uop_map.insert(0x4b, OpCode::new("ASR", 2, 2, AddressingMode::Immediate));
+
+        // AND byte with accumulator, then transfer accumulator to X register.
+        // Status flags: N,Z
+        uop_map.insert(0xab, OpCode::new("ATX", 2, 2, AddressingMode::Immediate));
+
+        // AND X register with accumulator then AND result with 7 and store in
+        // memory. Status flags: -
+        uop_map.insert(0x9f, OpCode::new("AXA", 3, 5, AddressingMode::Absolute_Y));
+        uop_map.insert(0x93, OpCode::new("AXA", 2, 6, AddressingMode::Indirect_Y));
+
+        // AND X register with accumulator and store result in X regis-ter, then
+        // subtract byte from X register (without borrow).
+        // Status flags: N,Z,C
+        uop_map.insert(0xcb, OpCode::new("AXS", 2, 2, AddressingMode::Immediate));
+
+        // Subtract 1 from memory (without borrow).
+        // Status flags: C
+        uop_map.insert(0xc7, OpCode::new("DCP", 2, 5, AddressingMode::ZeroPage));
+        uop_map.insert(0xd7, OpCode::new("DCP", 2, 6, AddressingMode::ZeroPage_X));
+        uop_map.insert(0xcf, OpCode::new("DCP", 3, 6, AddressingMode::Absolute));
+        uop_map.insert(0xdf, OpCode::new("DCP", 3, 7, AddressingMode::Absolute_X));
+        uop_map.insert(0xdb, OpCode::new("DCP", 3, 7, AddressingMode::Absolute_Y));
+        uop_map.insert(0xc3, OpCode::new("DCP", 2, 8, AddressingMode::Indirect_X));
+        uop_map.insert(0xd3, OpCode::new("DCP", 2, 8, AddressingMode::Indirect_Y));
+
+        // No operation (double NOP). The argument has no signifi-cance. Status flags: -
+        uop_map.insert(0x04, OpCode::new("DOP", 2, 3, AddressingMode::ZeroPage));
+        uop_map.insert(0x14, OpCode::new("DOP", 2, 4, AddressingMode::ZeroPage_X));
+        uop_map.insert(0x34, OpCode::new("DOP", 2, 4, AddressingMode::ZeroPage_X));
+        uop_map.insert(0x44, OpCode::new("DOP", 2, 3, AddressingMode::ZeroPage));
+        uop_map.insert(0x54, OpCode::new("DOP", 2, 4, AddressingMode::ZeroPage_X));
+        uop_map.insert(0x64, OpCode::new("DOP", 2, 3, AddressingMode::ZeroPage));
+        uop_map.insert(0x74, OpCode::new("DOP", 2, 4, AddressingMode::ZeroPage_X));
+        uop_map.insert(0x80, OpCode::new("DOP", 2, 2, AddressingMode::Immediate));
+        uop_map.insert(0x82, OpCode::new("DOP", 2, 2, AddressingMode::Immediate));
+        uop_map.insert(0x89, OpCode::new("DOP", 2, 2, AddressingMode::Immediate));
+        uop_map.insert(0xC2, OpCode::new("DOP", 2, 2, AddressingMode::Immediate));
+        uop_map.insert(0xd4, OpCode::new("DOP", 2, 4, AddressingMode::ZeroPage_X));
+        uop_map.insert(0xe2, OpCode::new("DOP", 2, 2, AddressingMode::Immediate));
+        uop_map.insert(0xf4, OpCode::new("DOP", 2, 4, AddressingMode::ZeroPage_X));
+
+        // Increase memory by one, then subtract memory from accu-mulator (with borrow). Status flags: N,V,Z,C
+        uop_map.insert(0xe7, OpCode::new("ISC", 2, 5, AddressingMode::ZeroPage));
+        uop_map.insert(0xf7, OpCode::new("ISC", 2, 6, AddressingMode::ZeroPage_X));
+        uop_map.insert(0xef, OpCode::new("ISC", 3, 6, AddressingMode::Absolute));
+        uop_map.insert(0xff, OpCode::new("ISC", 3, 7, AddressingMode::Absolute_X));
+        uop_map.insert(0xfb, OpCode::new("ISC", 3, 7, AddressingMode::Absolute_Y));
+        uop_map.insert(0xe3, OpCode::new("ISC", 2, 8, AddressingMode::Indirect_X));
+        uop_map.insert(0xf3, OpCode::new("ISC", 2, 8, AddressingMode::Indirect_Y));
+
+        // Stop program counter (processor lock up).
+        // Status flags: -
+        uop_map.insert(
+            0x02,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x12,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x22,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x32,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x42,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x52,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x62,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x72,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x92,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0xb2,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0xd2,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0xf2,
+            OpCode::new("KIL", 1, 0, AddressingMode::NoneAddressing),
+        );
+
+        // AND memory with stack pointer, transfer result to accu-mulator, X
+        // register and stack pointer.
+        // Status flags: N,Z
+        uop_map.insert(0xbb, OpCode::new("LAR", 3, 4, AddressingMode::Absolute_Y));
+
+        // Load accumulator and X register with memory.
+        // Status flags: N,Z
+        uop_map.insert(0xa7, OpCode::new("LAX", 2, 3, AddressingMode::ZeroPage));
+        uop_map.insert(0xb7, OpCode::new("LAX", 2, 4, AddressingMode::ZeroPage_Y));
+        uop_map.insert(0xaf, OpCode::new("LAX", 3, 4, AddressingMode::Absolute));
+        uop_map.insert(0xbf, OpCode::new("LAX", 3, 4, AddressingMode::Absolute_Y));
+        uop_map.insert(0xa3, OpCode::new("LAX", 2, 6, AddressingMode::Indirect_X));
+        uop_map.insert(0xb3, OpCode::new("LAX", 2, 5, AddressingMode::Indirect_Y));
+
+        // No operation
+        uop_map.insert(
+            0x1a,
+            OpCode::new("NOP", 1, 2, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x3a,
+            OpCode::new("NOP", 1, 2, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x5a,
+            OpCode::new("NOP", 1, 2, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0x7a,
+            OpCode::new("NOP", 1, 2, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0xda,
+            OpCode::new("NOP", 1, 2, AddressingMode::NoneAddressing),
+        );
+        uop_map.insert(
+            0xfa,
+            OpCode::new("NOP", 1, 2, AddressingMode::NoneAddressing),
+        );
+
+        // Rotate one bit left in memory, then AND accumulator with memory. Status
+        // flags: N,Z,C
+        uop_map.insert(0x27, OpCode::new("RLA", 2, 5, AddressingMode::ZeroPage));
+        uop_map.insert(0x37, OpCode::new("RLA", 2, 6, AddressingMode::ZeroPage_X));
+        uop_map.insert(0x2f, OpCode::new("RLA", 3, 6, AddressingMode::Absolute));
+        uop_map.insert(0x3f, OpCode::new("RLA", 3, 7, AddressingMode::Absolute_X));
+        uop_map.insert(0x3b, OpCode::new("RLA", 3, 7, AddressingMode::Absolute_Y));
+        uop_map.insert(0x23, OpCode::new("RLA", 2, 8, AddressingMode::Indirect_X));
+        uop_map.insert(0x33, OpCode::new("RLA", 2, 8, AddressingMode::Indirect_Y));
+
+        // Rotate one bit right in memory, then add memory to accumulator (with
+        // carry).
+        // Status flags: N,V,Z,C
+        uop_map.insert(0x67, OpCode::new("RRA", 2, 5, AddressingMode::ZeroPage));
+        uop_map.insert(0x77, OpCode::new("RRA", 2, 6, AddressingMode::ZeroPage_X));
+        uop_map.insert(0x6f, OpCode::new("RRA", 3, 6, AddressingMode::Absolute));
+        uop_map.insert(0x7f, OpCode::new("RRA", 3, 7, AddressingMode::Absolute_X));
+        uop_map.insert(0x7b, OpCode::new("RRA", 3, 7, AddressingMode::Absolute_Y));
+        uop_map.insert(0x63, OpCode::new("RRA", 2, 8, AddressingMode::Indirect_X));
+        uop_map.insert(0x73, OpCode::new("RRA", 2, 8, AddressingMode::Indirect_Y));
+
+        // The same as the legal opcode $E9 (SBC #byte)
+        // Status flags: N,V,Z,C
+        uop_map.insert(0xeb, OpCode::new("SBC", 2, 2, AddressingMode::Immediate));
+
+        // Shift left one bit in memory, then OR accumulator with memory. =
+        // Status flags: N,Z,C
+        uop_map.insert(0x07, OpCode::new("SLO", 2, 5, AddressingMode::ZeroPage));
+        uop_map.insert(0x17, OpCode::new("SLO", 2, 6, AddressingMode::ZeroPage_X));
+        uop_map.insert(0x0f, OpCode::new("SLO", 3, 6, AddressingMode::Absolute));
+        uop_map.insert(0x1f, OpCode::new("SLO", 3, 7, AddressingMode::Absolute_X));
+        uop_map.insert(0x1b, OpCode::new("SLO", 3, 7, AddressingMode::Absolute_Y));
+        uop_map.insert(0x03, OpCode::new("SLO", 2, 8, AddressingMode::Indirect_X));
+        uop_map.insert(0x13, OpCode::new("SLO", 2, 8, AddressingMode::Indirect_Y));
+
+        // Shift right one bit in memory, then EOR accumulator with memory. Status
+        // flags: N,Z,C
+        uop_map.insert(0x47, OpCode::new("SRE", 2, 5, AddressingMode::ZeroPage));
+        uop_map.insert(0x57, OpCode::new("SRE", 2, 6, AddressingMode::ZeroPage_X));
+        uop_map.insert(0x4f, OpCode::new("SRE", 3, 6, AddressingMode::Absolute));
+        uop_map.insert(0x5f, OpCode::new("SRE", 3, 7, AddressingMode::Absolute_X));
+        uop_map.insert(0x5b, OpCode::new("SRE", 3, 7, AddressingMode::Absolute_Y));
+        uop_map.insert(0x43, OpCode::new("SRE", 2, 8, AddressingMode::Indirect_X));
+        uop_map.insert(0x53, OpCode::new("SRE", 2, 8, AddressingMode::Indirect_Y));
+
+        // AND X register with the high byte of the target address of the argument
+        // + 1. Store the result in memory.
+        // M =3D X AND HIGH(arg) + 1
+        // Status flags: -
+        uop_map.insert(0x9e, OpCode::new("SXA", 3, 5, AddressingMode::Absolute_Y));
+
+        // AND Y register with the high byte of the target address of the argument
+        // + 1. Store the result in memory.
+        // M =3D Y AND HIGH(arg) + 1
+        // Status flags: -
+        uop_map.insert(0x9c, OpCode::new("SYA", 3, 5, AddressingMode::Absolute_X));
+
+        // No operation (tripple NOP). The argument has no signifi-cance. Status
+        // flags: -
+        uop_map.insert(0x0c, OpCode::new("TOP", 3, 4, AddressingMode::Absolute));
+        uop_map.insert(0x1c, OpCode::new("TOP", 3, 4, AddressingMode::Absolute_X));
+        uop_map.insert(0x3c, OpCode::new("TOP", 3, 4, AddressingMode::Absolute_X));
+        uop_map.insert(0x5c, OpCode::new("TOP", 3, 4, AddressingMode::Absolute_X));
+        uop_map.insert(0x7c, OpCode::new("TOP", 3, 4, AddressingMode::Absolute_X));
+        uop_map.insert(0xdc, OpCode::new("TOP", 3, 4, AddressingMode::Absolute_X));
+        uop_map.insert(0xfc, OpCode::new("TOP", 3, 4, AddressingMode::Absolute_X));
+
+        // Exact operation unknown. Read the referenced documents for more
+        // information and observations.
+        uop_map.insert(0x8b, OpCode::new("XAA", 2, 2, AddressingMode::Immediate));
+
+        // AND X register with accumulator and store result in stack pointer, then
+        // AND stack pointer with the high byte of the target address of the
+        // argument + 1. Store result in memory.
+        // S =3D X AND A, M =3D S AND HIGH(arg) + 1
+        // Status flags: -
+        uop_map.insert(0x9b, OpCode::new("XAA", 3, 5, AddressingMode::Absolute_Y));
+
         CPU {
             register_a: 0,
             register_x: 0,
@@ -702,6 +948,7 @@ impl<'call> CPU<'call> {
             stack_counter: 0,
             bus,
             op_map,
+            uop_map,
             added_cycles_of_addr: 0,
             added_cycles_of_br: 0,
         }
@@ -757,10 +1004,13 @@ impl<'call> CPU<'call> {
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
             let old_pc = self.program_counter;
-
+            let mut cycles = 0;
+            let mut op_length = 0;
             if self.op_map.contains_key(&code) {
                 let op = self.op_map[&code].clone();
                 let mode = &op.mode;
+                cycles = op.cycles;
+                op_length = op.op_length;
                 match op.name.as_str() {
                     "LDA" => {
                         self.lda(&mode);
@@ -931,28 +1181,71 @@ impl<'call> CPU<'call> {
                         return;
                     }
                     _ => {
-                        panic!("Internal error in op_map match~");
+                        panic!("0x{:02X}, Internal error of op_map.", code);
                     }
                 }
-
-                // propagate tick to bus
-                self.bus
-                    .tick(op.cycles + self.added_cycles_of_br + self.added_cycles_of_addr);
-                self.added_cycles_of_addr = 0;
-                self.added_cycles_of_br = 0;
-
-                if self.program_counter == old_pc {
-                    self.program_counter += (op.op_length - 1) as u16;
+            } else if self.uop_map.contains_key(&code) {
+                let op = self.uop_map[&code].clone();
+                let mode = &op.mode;
+                cycles = op.cycles;
+                op_length = op.op_length;
+                match op.name.as_str() {
+                    "DOP" => {
+                        self.dop(&mode);
+                    }
+                    "TOP" => {
+                        self.top(&mode);
+                    }
+                    "LAX" => {
+                        self.lax(&mode);
+                    }
+                    "AAX" => {
+                        self.aax(&mode);
+                    }
+                    "NOP" => {
+                        self.nop();
+                    }
+                    "SBC" => {
+                        self.sbc(&mode);
+                    }
+                    "DCP" => {
+                        self.dcp(&mode);
+                    }
+                    "ISC" => {
+                        self.isc(&mode);
+                    }
+                    "SLO" => {
+                        self.asl(&mode);
+                        self.ora(&mode);
+                    }
+                    "RLA" => {
+                        self.rol(&mode);
+                        self.and(&mode);
+                    }
+                    "SRE" => {
+                        self.lsr(&mode);
+                        self.eor(&mode);
+                    }
+                    "RRA" => {
+                        self.ror(&mode);
+                        self.adc(&mode);
+                    }
+                    _ => {
+                        panic!("0x{:02X}, Internal error of uop_map.", code);
+                    }
                 }
-                continue;
+            } else {
+                panic!("op:{:X} is not implemented!", code);
             }
 
-            // single address mode
-            match code {
-                _ => {
-                    println!("{:x}", code);
-                    todo!()
-                }
+            // propagate tick to bus
+            self.bus
+                .tick(cycles + self.added_cycles_of_br + self.added_cycles_of_addr);
+            self.added_cycles_of_addr = 0;
+            self.added_cycles_of_br = 0;
+
+            if self.program_counter == old_pc {
+                self.program_counter += (op_length - 1) as u16;
             }
         }
     }
@@ -1559,6 +1852,113 @@ impl<'call> CPU<'call> {
         // StatusFlag::DecimalMode.remove(&mut self.status);
     }
 
+    fn aac(&mut self, mode: &AddressingMode) {
+        // FIXME: does register_a is affected?
+        self.and(mode);
+        if StatusFlag::Negative.test(self.status) {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+
+        // let addr = self.get_operand_address(mode);
+        // let value = self.mem_read(addr);
+        // let (result, _) = value.overflowing_sub(1);
+        // self.mem_write(addr, result);
+        // self.update_zero_and_negative_flags(result);
+    }
+
+    fn aax(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let result = self.register_a & self.register_x;
+        self.mem_write(addr, result);
+        // self.update_zero_and_negative_flags(result);
+    }
+
+    fn isc(&mut self, mode: &AddressingMode) {
+        self.inc(&mode);
+        self.sbc(&mode);
+    }
+
+    fn dcp(&mut self, mode: &AddressingMode) {
+        self.dec(&mode);
+        self.cmp(&mode);
+        /*
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        let (value, carry) = value.overflowing_sub(1);
+        if carry {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        self.update_zero_and_negative_flags(value);
+        self.mem_write(addr, value);
+        */
+    }
+
+    fn arr(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_a &= value;
+        let _ = self.register_a.rotate_right(1);
+
+        if self.register_a & 0b0100_0000 == 0b0100_0000 {
+            StatusFlag::Carry.add(&mut self.status);
+        }
+        if (self.register_a & 0b0100_0000 == 0b0100_0000)
+            && (self.register_a & 0b0100_0000 == 0b0100_0000)
+        {
+            StatusFlag::Overflow.remove(&mut self.status);
+        } else {
+            StatusFlag::Overflow.add(&mut self.status);
+        }
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn asr(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_a &= value;
+        if self.register_a & 0x1 == 1 {
+            StatusFlag::Carry.add(&mut self.status);
+        } else {
+            StatusFlag::Carry.remove(&mut self.status);
+        }
+        self.register_a.shr_assign(1);
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn atx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_a &= value;
+        self.register_x = self.register_a;
+        self.update_zero_and_negative_flags(self.register_a);
+    }
+
+    fn axa(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let result = self.register_a & self.register_x & 0b1000_0000;
+        self.mem_write(addr, result);
+    }
+
+    fn dop(&mut self, mode: &AddressingMode) {
+        // do nothing
+    }
+
+    fn top(&mut self, mode: &AddressingMode) {
+        // do nothing
+    }
+
+    fn lax(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let value = self.mem_read(addr);
+        self.register_a = value;
+        self.register_x = value;
+        self.update_zero_and_negative_flags(value);
+    }
+
     fn push_u16(&mut self, value: u16) {
         let lo: u8 = (value & 0xff) as u8;
         let hi: u8 = ((value >> 8) & 0xff) as u8;
@@ -1628,12 +2028,14 @@ impl<'call> CPU<'call> {
             AddressingMode::ZeroPage_X => {
                 let pos = self.mem_read(self.program_counter);
                 let addr = pos.wrapping_add(self.register_x) as u16;
+                // FIXME: if pos == 0xff, addr may need minus 0x100
                 addr
             }
 
             AddressingMode::ZeroPage_Y => {
                 let pos = self.mem_read(self.program_counter);
                 let addr = pos.wrapping_add(self.register_y) as u16;
+                // FIXME: if pos == 0xff, addr may need minus 0x100
                 addr
             }
 
@@ -1702,13 +2104,16 @@ impl<'call> CPU<'call> {
         let mut res = format!("{:0>4X}  ", pc);
 
         let op = self.mem_read(pc);
-        let opcode_v = &self.op_map.get(&op);
-        if opcode_v.is_none() {
-            eprintln!("opcode {:X} no implemented! ", op);
+        let opcode: OpCode;
+        if self.op_map.contains_key(&op) {
+            opcode = self.op_map.get(&op).unwrap().clone();
+        } else if self.uop_map.contains_key(&op) {
+            opcode = self.uop_map.get(&op).unwrap().clone();
+        } else {
+            panic!("0x{:2X} is not implemented!", op);
         }
-        let opcode = opcode_v.unwrap();
 
-        let name = &opcode.name.clone();
+        let mut name = &opcode.name.clone();
         let op_length = opcode.op_length;
         let mode = opcode.mode;
 
@@ -1719,11 +2124,32 @@ impl<'call> CPU<'call> {
             }
             code_res.push_str(&format!("{:02X}", self.mem_read(pc + (i as u16))));
         }
-        while code_res.len() < 10 {
+        while code_res.len() < 9 {
+            code_res.push(' ');
+        }
+        if self.uop_map.contains_key(&op) {
+            code_res.push('*');
+        } else {
             code_res.push(' ');
         }
 
-        res.push_str(format!("{}{} ", code_res, name).as_str());
+        match name.as_str() {
+            "DOP" | "TOP" => {
+                res.push_str(format!("{}{} ", code_res, "NOP").as_str());
+            }
+            "AAX" => {
+                res.push_str(format!("{}{} ", code_res, "SAX").as_str());
+            }
+            "ISC" | "INS" => {
+                res.push_str(format!("{}{} ", code_res, "ISB").as_str());
+            }
+            _ => {
+                res.push_str(format!("{}{} ", code_res, name).as_str());
+            }
+        }
+        if name == "DOP" || name == "TOP" {
+        } else {
+        }
 
         let mut addr_res = String::from("");
         self.program_counter += 1;

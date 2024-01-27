@@ -104,7 +104,7 @@ impl<'call> Mem for Bus<'call> {
             }
             0x8000..=0xFFFF => self.read_prg_rom(addr),
             _ => {
-                println!("Ignoring mem accesss at {}", addr);
+                println!("Ignoring mem accesss at 0x{:02X}", addr);
                 0
             }
         }
@@ -149,7 +149,7 @@ impl<'call> Mem for Bus<'call> {
                 panic!("Attempt to write to Cartridge ROM space")
             }
             _ => {
-                println!("Ignoring mem accesss at {}", addr);
+                println!("Ignoring mem accesss at 0x{:02X}", addr);
             }
         }
     }
