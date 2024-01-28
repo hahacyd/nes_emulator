@@ -30,8 +30,8 @@ pub struct NesPPU {
     internal_data_buf: u8,
 
 
-    cycles: usize,
-    scanline: usize,
+    pub cycles: usize,
+    pub scanline: usize,
 
     pub nmi_interrupt:Option<bool>,
 }
@@ -52,7 +52,8 @@ impl NesPPU {
             scroll: 0,
             oam_data: [0; 256],
             mask: 0,
-            cycles: 0,
+            // cycles is 21 is taken from nestest.log
+            cycles: 21,
             scanline: 0,
             nmi_interrupt: Some(false),
         }

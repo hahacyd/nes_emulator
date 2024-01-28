@@ -6,8 +6,8 @@ mod render;
 
 use crate::bus::Bus;
 use crate::bus::Mem;
-use crate::cpu::CPU;
 use crate::cpu::AddressingMode;
+use crate::cpu::CPU;
 use crate::ppu::NesPPU;
 use crate::render::frame::show_frame;
 use crate::render::frame::Frame;
@@ -117,7 +117,6 @@ fn load_nes(path: &str) -> Rom {
     return Rom::new(&result.unwrap()).unwrap();
 }
 
-
 fn main() {
     // init sdl2
     let sdl_context = sdl2::init().unwrap();
@@ -162,10 +161,25 @@ fn main() {
         0x60, 0xa2, 0x00, 0xea, 0xea, 0xca, 0xd0, 0xfb, 0x60,
     ]; */
 
-    // load the game
-    // let rom = load_nes("Pac-Man.nes");
+    // nestest
     let rom = load_nes("/home/yadong/study/nes/nestest.nes");
+    // let rom = load_nes("/home/yadong/study/nes/Pac-Man.nes");
+    let mut frame = Frame::new();
+    let mut bus = Bus::new(rom, |ppu: &NesPPU| {});
 
+    let mut cpu = CPU::new(bus);
+    cpu.reset();
+    let mut count:u64 = 0;
+    cpu.run_with_callbacks(move |cpu| {
+        println!("{}", cpu.trace());
+        if count > 0x4000{
+            std::process::exit(-1);
+        }
+    });
+
+    // load the game
+    /*
+    let rom = load_nes("Pac-Man.nes");
     let mut frame = Frame::new();
     let mut bus = Bus::new(rom, |ppu: &NesPPU| {
         render::render(&ppu, &mut frame);
@@ -184,27 +198,22 @@ fn main() {
         }
     });
 
-    let mut count = 0;
     let mut cpu = CPU::new(bus);
     cpu.reset();
-    cpu.run_with_callbacks(move |cpu| {
-        count += 1;
-        println!("{}", cpu.trace());
-        /*if count > 0x4000000 {
-            exit(-1);
-        }*/
-    });
-    // cpu.run();
-    /*cpu.run_with_callbacks(move |cpu| {
-        handle_user_input(cpu, &mut event_pump);
-        cpu.mem_write(0xfe, rng.gen_range(1, 16));
-        if read_screen_state(cpu, &mut screen_state) {
-            texture.update(None, &screen_state, 32 * 3).unwrap();
-            canvas.copy(&texture, None, None).unwrap();
-            canvas.present();
-        }
-
-        // ::std::thread::sleep(std::time::Duration::new(0, 500_000_000));
-        ::std::thread::sleep(std::time::Duration::new(0, 70_000));
-    });*/
+    cpu.run();
+    */
 }
+
+// snake game
+/*cpu.run_with_callbacks(move |cpu| {
+    handle_user_input(cpu, &mut event_pump);
+    cpu.mem_write(0xfe, rng.gen_range(1, 16));
+    if read_screen_state(cpu, &mut screen_state) {
+        texture.update(None, &screen_state, 32 * 3).unwrap();
+        canvas.copy(&texture, None, None).unwrap();
+        canvas.present();
+    }
+
+    // ::std::thread::sleep(std::time::Duration::new(0, 500_000_000));
+    ::std::thread::sleep(std::time::Duration::new(0, 70_000));
+});*/

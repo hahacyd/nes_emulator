@@ -5,9 +5,9 @@ use super::ppu::NesPPU;
 pub struct Bus<'call> {
     cpu_vram: [u8; 2048],
     rom: Rom,
-    ppu: NesPPU,
+    pub ppu: NesPPU,
 
-    cycles: usize,
+    pub cycles: usize,
     gameloop_callback: Box<dyn FnMut(&NesPPU) + 'call>,
 }
 
@@ -32,7 +32,8 @@ impl<'call> Bus<'call> {
             cpu_vram,
             rom,
             ppu,
-            cycles:0,
+            // cycles is 7 is taken from nestest.log
+            cycles:7,
             gameloop_callback: Box::from(gameloop_callback),
         }
     }
@@ -49,6 +50,13 @@ impl<'call> Bus<'call> {
 
     pub fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
+        let new_frame = self.ppu.tick(cycles * 3);
+        if new_frame {
+            (self.gameloop_callback)(&self.ppu);
+        }
+
+        /*
+        self.cycles += cycles as usize;
         let mut nmi_before:bool = false;
         if Some(true) == self.ppu.nmi_interrupt {
             nmi_before = true;
@@ -62,7 +70,7 @@ impl<'call> Bus<'call> {
 
         if !nmi_before && nmi_after {
             (self.gameloop_callback)(&self.ppu);
-        }
+        }*/
     }
 
     pub fn poll_nmi_status(&mut self) -> bool {
@@ -93,7 +101,8 @@ impl<'call> Mem for Bus<'call> {
                 self.cpu_vram[mirror_down_addr as usize]
             }
             0x2000 | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
-                panic!("Attempt to read from write-only PPU address {:x}", addr);
+                // panic!("Attempt to read from write-only PPU address {:x}", addr);
+                0x0
             }
             0x2002 => self.ppu.read_status(),
             0x2004 => self.ppu.read_oam_data(),
@@ -149,7 +158,7 @@ impl<'call> Mem for Bus<'call> {
                 panic!("Attempt to write to Cartridge ROM space")
             }
             _ => {
-                println!("Ignoring mem accesss at 0x{:02X}", addr);
+                panic!("Ignoring mem accesss at 0x{:02X}", addr);
             }
         }
     }

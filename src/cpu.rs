@@ -228,7 +228,7 @@ impl<'call> CPU<'call> {
             OpCode::new(
                 "STA",
                 3,
-                4, /* +1 if page crossed */
+                5,
                 AddressingMode::Absolute_X,
             ),
         );
@@ -237,7 +237,7 @@ impl<'call> CPU<'call> {
             OpCode::new(
                 "STA",
                 3,
-                4, /* +1 if page crossed */
+                5,
                 AddressingMode::Absolute_Y,
             ),
         );
@@ -247,7 +247,7 @@ impl<'call> CPU<'call> {
             OpCode::new(
                 "STA",
                 2,
-                5, /* +1 if page corssed */
+                6,
                 AddressingMode::Indirect_Y,
             ),
         );
@@ -995,12 +995,14 @@ impl<'call> CPU<'call> {
             if self.bus.poll_nmi_status() {
                 self.interrupt_nmi();
             }
-
+            
             callback(self);
 
             /*if self.program_counter < self.mem_read_u16(0xFFFC) {
                 panic!("invalid program_counter:{}", self.program_counter);
             }*/
+            self.added_cycles_of_addr = 0;
+            self.added_cycles_of_br = 0;
             let code = self.mem_read(self.program_counter);
             self.program_counter += 1;
             let old_pc = self.program_counter;
@@ -1241,8 +1243,6 @@ impl<'call> CPU<'call> {
             // propagate tick to bus
             self.bus
                 .tick(cycles + self.added_cycles_of_br + self.added_cycles_of_addr);
-            self.added_cycles_of_addr = 0;
-            self.added_cycles_of_br = 0;
 
             if self.program_counter == old_pc {
                 self.program_counter += (op_length - 1) as u16;
@@ -1944,10 +1944,12 @@ impl<'call> CPU<'call> {
     }
 
     fn dop(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
         // do nothing
     }
 
     fn top(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
         // do nothing
     }
 
@@ -2020,6 +2022,8 @@ impl<'call> CPU<'call> {
     }
 
     pub fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
+        // assume op is current opcode
+        let op = self.mem_read(self.program_counter - 1);
         match mode {
             AddressingMode::Immediate => self.program_counter,
 
@@ -2045,7 +2049,17 @@ impl<'call> CPU<'call> {
                 let base = self.mem_read_u16(self.program_counter);
                 let addr = base.wrapping_add(self.register_x as u16);
                 if base & 0xff00 != addr & 0xff00 {
-                    self.added_cycles_of_addr += 1;
+                    match op {
+                        // official op
+                        0x1e | 0xde | 0xfe | 0x5e | 0x3e | 0x7e | 0x9d => {
+                            // special case, don't add cycles of addr
+                        }
+                        // unofficial op
+                        0xdf | 0xff | 0x3f | 0x7f | 0x1f | 0x5f | 0x9c => {}
+                        _ => {
+                            self.added_cycles_of_addr += 1;
+                        }
+                    }
                 }
                 addr
             }
@@ -2054,7 +2068,16 @@ impl<'call> CPU<'call> {
                 let base = self.mem_read_u16(self.program_counter);
                 let addr = base.wrapping_add(self.register_y as u16);
                 if base & 0xff00 != addr & 0xff00 {
-                    self.added_cycles_of_addr += 1;
+                    match op {
+                        // official op
+                        0x99 => {}
+
+                        // unofficial op
+                        0x9f | 0xdb | 0xfb | 0x3b | 0x7b | 0x1b | 0x5b | 0x9e | 0x9b => {}
+                        _ => {
+                            self.added_cycles_of_addr += 1;
+                        }
+                    }
                 }
                 addr
             }
@@ -2077,7 +2100,15 @@ impl<'call> CPU<'call> {
                 let deref_base = (hi as u16) << 8 | (lo as u16);
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 if deref_base & 0xff00 != deref & 0xff00 {
-                    self.added_cycles_of_addr += 1;
+                    match op {
+                        // official op 
+                        0x91 => {}
+                        // unofficial op
+                        0x93 | 0xd3 | 0xf3 | 0x33 | 0x73 | 0x13 | 0x53 => {}
+                        _ => {
+                            self.added_cycles_of_addr += 1;
+                        }
+                    }
                 }
                 deref
             }
@@ -2299,6 +2330,11 @@ impl<'call> CPU<'call> {
         res.push_str(&format!(
             "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
             self.register_a, self.register_x, self.register_y, self.status, self.stack_counter
+        ));
+
+        // ppu & cycles
+        res.push_str(&format!(
+            " PPU: {:3},{:3} CYC:{}", self.bus.ppu.scanline, self.bus.ppu.cycles, self.bus.cycles
         ));
         res
     }
