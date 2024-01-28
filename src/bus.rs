@@ -111,6 +111,14 @@ impl<'call> Mem for Bus<'call> {
                 //ignore APU 
                 0
             }
+            0x4016 => {
+                // ignore joypads
+                0
+            }
+            0x4017 => {
+                // ignore joypads
+                0
+            }
             0x8000..=0xFFFF => self.read_prg_rom(addr),
             _ => {
                 println!("Ignoring mem accesss at 0x{:02X}", addr);
@@ -156,6 +164,15 @@ impl<'call> Mem for Bus<'call> {
             }
             0x8000..=0xFFFF => {
                 panic!("Attempt to write to Cartridge ROM space")
+            }
+            0x4000..=0x4013 | 0x4015 => {
+                //ignore APU 
+            }
+            0x4016 => {
+                // ignore joypads
+            }
+            0x4017 => {
+                // ignore joypads
             }
             // https://wiki.nesdev.com/w/index.php/PPU_programmer_reference#OAM_DMA_.28.244014.29_.3E_write
             0x4014 => {

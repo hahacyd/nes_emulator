@@ -148,6 +148,7 @@ impl NesPPU {
 
     pub fn write_to_oam_data(&mut self, value: u8) {
         self.oam_data[self.oam_addr as usize] = value;
+        self.oam_addr = self.oam_addr.wrapping_add(1);
     }
 
     pub fn write_to_ctrl(&mut self, value: u8) {
@@ -156,7 +157,6 @@ impl NesPPU {
 
     pub fn write_to_data(&mut self, value: u8) {
         let addr = self.addr.get();
-        self.increment_vram_addr();
 
         match addr {
             0..=0x1fff => panic!("attempt to write to chr rom space {}", addr), 
@@ -164,9 +164,12 @@ impl NesPPU {
                 self.vram[self.mirror_vram_addr(addr) as usize] = value;
             }
             0x3000..=0x3eff => panic!("addr space 0x3000..0x3eff is not expected to be used, requested = {} ", addr),
-            0x3f00..=0x3fff => panic!("addr is not expected to be used, {}", addr),
+            0x3f00..=0x3fff => {
+                self.palette_table[(addr - 0x3f00) as usize] = value;
+            }
             _ => panic!("unexpected access to mirrored space {}", addr),
         }
+        self.increment_vram_addr();
     }
 
     fn increment_vram_addr(&mut self) {
@@ -324,7 +327,6 @@ impl ControlRegister {
     }
 }
 
-/*
 #[cfg(test)]
 pub mod test {
     use super::*;
@@ -523,4 +525,4 @@ pub mod test {
         ppu.write_to_oam_addr(0x11);
         ppu.write_to_oam_addr(0x66);
     }
-}*/
+}
