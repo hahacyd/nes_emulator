@@ -25,15 +25,15 @@ fn test_format_trace() {
         result.push(cpu.trace());
     });
     assert_eq!(
-        "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD",
+        "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD PPU:   0, 21 CYC:7",
         result[0]
     );
     assert_eq!(
-        "0066  CA        DEX                             A:01 X:01 Y:03 P:24 SP:FD",
+        "0066  CA        DEX                             A:01 X:01 Y:03 P:24 SP:FD PPU:   0, 27 CYC:9",
         result[1]
     );
     assert_eq!(
-        "0067  88        DEY                             A:01 X:00 Y:03 P:26 SP:FD",
+        "0067  88        DEY                             A:01 X:00 Y:03 P:26 SP:FD PPU:   0, 33 CYC:11",
         result[2]
     );
 }
@@ -61,7 +61,7 @@ fn test_format_mem_access() {
         result.push(cpu.trace());
     });
     assert_eq!(
-        "0064  11 33     ORA ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD",
+        "0064  11 33     ORA ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD PPU:   0, 21 CYC:7",
         result[0]
     );
 }

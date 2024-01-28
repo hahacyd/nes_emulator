@@ -992,7 +992,7 @@ impl<'call> CPU<'call> {
         F: FnMut(&mut CPU),
     {
         loop {
-            if self.bus.poll_nmi_status() {
+            if let Some(_nmi) = self.bus.poll_nmi_status() {
                 self.interrupt_nmi();
             }
             
@@ -2009,10 +2009,10 @@ impl<'call> CPU<'call> {
 
     fn interrupt_nmi(&mut self) {
         self.push_u16(self.program_counter);
-        StatusFlag::BreakCommand.add(&mut self.status);
 
         let mut flag = self.status.clone();
-        StatusFlag::BreakCommand.add(&mut flag);
+        // StatusFlag::BreakCommand.add(&mut flag);
+        // StatusFlag::Undefined.add(&mut flag);
 
         self.push(flag);
         StatusFlag::InterruptDisable.add(&mut self.status);

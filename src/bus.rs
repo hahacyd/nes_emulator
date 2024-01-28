@@ -73,12 +73,8 @@ impl<'call> Bus<'call> {
         }*/
     }
 
-    pub fn poll_nmi_status(&mut self) -> bool {
-        if Some(true) == self.ppu.nmi_interrupt {
-            self.ppu.nmi_interrupt = Some(false);
-            return true;
-        }
-        return false;
+    pub fn poll_nmi_status(&mut self) -> Option<u8> {
+        return self.ppu.pull_nmi_interrupt();
     }
 }
 
@@ -110,6 +106,10 @@ impl<'call> Mem for Bus<'call> {
             0x2008..=PPU_REGISTERS_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b0010_0000_0000_0111;
                 self.mem_read(mirror_down_addr)
+            }
+            0x4000..=0x4015 => {
+                //ignore APU 
+                0
             }
             0x8000..=0xFFFF => self.read_prg_rom(addr),
             _ => {
@@ -156,6 +156,20 @@ impl<'call> Mem for Bus<'call> {
             }
             0x8000..=0xFFFF => {
                 panic!("Attempt to write to Cartridge ROM space")
+            }
+            // https://wiki.nesdev.com/w/index.php/PPU_programmer_reference#OAM_DMA_.28.244014.29_.3E_write
+            0x4014 => {
+                let mut buffer: [u8; 256] = [0; 256];
+                let hi: u16 = (data as u16) << 8;
+                for i in 0..256u16 {
+                    buffer[i as usize] = self.mem_read(hi + i);
+                }
+
+                self.ppu.write_oam_dma(&buffer);
+
+                // todo: handle this eventually
+                // let add_cycles: u16 = if self.cycles % 2 == 1 { 514 } else { 513 };
+                // self.tick(add_cycles); //todo this will cause weird effects as PPU will have 513/514 * 3 ticks
             }
             _ => {
                 panic!("Ignoring mem accesss at 0x{:02X}", addr);

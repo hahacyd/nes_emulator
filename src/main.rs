@@ -122,13 +122,12 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("Snake game", 256 * 2 as u32, 240 * 2 as u32)
+        .window("Tile Viewer", 256 * 3 as u32, 240 * 3 as u32)
         .position_centered()
         .build()
         .unwrap();
     let mut canvas = window.into_canvas().present_vsync().build().unwrap();
-    let mut event_pump = sdl_context.event_pump().unwrap();
-    canvas.set_scale(1.0, 1.0).unwrap();
+    canvas.set_scale(3.0, 3.0).unwrap();
 
     // create a texture
     let creator = canvas.texture_creator();
@@ -136,6 +135,8 @@ fn main() {
         .create_texture_target(PixelFormatEnum::RGB24, 256, 240)
         .unwrap();
 
+
+    let mut event_pump = sdl_context.event_pump().unwrap();
     // let game_code: Vec<u8> = vec![0xa9, 0x01, 0x8d, 0x00, 0x02, 0xa9, 0x05, 0x8d, 0x01, 0x02, 0xa9, 0x08, 0x8d, 0x02, 0x02];
     /* let game_code: Vec<u8> = vec![
         0x20, 0x06, 0x06, 0x20, 0x38, 0x06, 0x20, 0x0d, 0x06, 0x20, 0x2a, 0x06, 0x60, 0xa9, 0x02,
@@ -162,6 +163,7 @@ fn main() {
     ]; */
 
     // nestest
+    /*
     let rom = load_nes("/home/yadong/study/nes/nestest.nes");
     // let rom = load_nes("/home/yadong/study/nes/Pac-Man.nes");
     let mut frame = Frame::new();
@@ -175,10 +177,9 @@ fn main() {
         if count > 0x4000{
             std::process::exit(-1);
         }
-    });
+    });*/
 
     // load the game
-    /*
     let rom = load_nes("Pac-Man.nes");
     let mut frame = Frame::new();
     let mut bus = Bus::new(rom, |ppu: &NesPPU| {
@@ -201,7 +202,6 @@ fn main() {
     let mut cpu = CPU::new(bus);
     cpu.reset();
     cpu.run();
-    */
 }
 
 // snake game
