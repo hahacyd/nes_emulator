@@ -1,4 +1,5 @@
 use super::palette;
+use crate::ppu::NesPPU;
 
 pub struct Frame {
     pub data:Vec<u8>,
@@ -24,24 +25,39 @@ impl Frame {
     }
 }
 
-pub fn show_frame(chr_rom: &Vec<u8>) -> Frame {
+pub fn show_frame(ppu:&NesPPU) -> Frame {
     let mut frame = Frame::new();
 
     for i in 0..(Frame::WIDTH * Frame::HEIGHT / 64) {
         let tile_x = i % 32;
         let tile_y = i / 32;
-        show_tile(chr_rom, &mut frame, 0, tile_x, tile_y, i % 512);
+        show_tile(&ppu, &mut frame, 0, tile_x, tile_y, i % 512);
     }
     frame
 }
 
-pub fn show_tile(chr_rom: &Vec<u8>, frame: &mut Frame, bank: u16, tile_x:usize, tile_y:usize, tile_idx: usize) {
+fn bg_pallette(ppu: &NesPPU, tile_y:usize, tile_x:usize) -> [u8; 4]{
+    let attr_table_idx = tile_x / 4 + tile_y / 4 * 8;
+    let attr = ppu.vram[0x3c0 + attr_table_idx];
+    let pallet_idx = match (tile_x % 4 / 2, tile_y % 4 / 2) {
+        (0, 0) => attr & 0b11,
+        (1, 0) => (attr >> 2) & 0b11,
+        (0, 1) => (attr >> 4) & 0b11,
+        (1, 1) => (attr >> 6) & 0b11,
+        (_, _) => panic!("should not happen."),
+    };
+    let pallete_start: usize = 1 + (pallet_idx as usize) * 4;
+    [ppu.palette_table[0], ppu.palette_table[pallete_start], ppu.palette_table[pallete_start + 1], ppu.palette_table[pallete_start + 2]]
+}
+
+pub fn show_tile(ppu:&NesPPU, frame: &mut Frame, bank: u16, tile_x:usize, tile_y:usize, tile_idx: usize) {
     assert!(bank <= 1);
 
     let bank = (bank * 0x1000) as usize;
 
-    let tile = &chr_rom[(bank + tile_idx * 16)..=(bank + tile_idx * 16 + 15)];
-    
+    let tile = &ppu.chr_rom[(bank + tile_idx * 16)..=(bank + tile_idx * 16 + 15)];
+    let pallette = bg_pallette(&ppu, tile_y, tile_x);
+
     for y in 0..=7 {
         let mut upper = tile[y];
         let mut lower = tile[y + 8];
@@ -52,10 +68,10 @@ pub fn show_tile(chr_rom: &Vec<u8>, frame: &mut Frame, bank: u16, tile_x:usize, 
             lower = lower >> 1;
 
             let rgb = match value {
-                0 => palette::SYSTEM_PALLETE[0x01],
-                1 => palette::SYSTEM_PALLETE[0x23],
-                2 => palette::SYSTEM_PALLETE[0x27],
-                3 => palette::SYSTEM_PALLETE[0x30],
+                0 => palette::SYSTEM_PALLETE[ppu.palette_table[0] as usize],
+                1 => palette::SYSTEM_PALLETE[pallette[1] as usize],
+                2 => palette::SYSTEM_PALLETE[pallette[2] as usize],
+                3 => palette::SYSTEM_PALLETE[pallette[3] as usize],
                 _ => panic!("can't be"),
             };
             frame.set_pixel(tile_x * 8 + x, tile_y * 8 + y, rgb);
