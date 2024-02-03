@@ -30,16 +30,13 @@ pub fn show_frame(chr_rom: &Vec<u8>) -> Frame {
     for i in 0..(Frame::WIDTH * Frame::HEIGHT / 64) {
         let tile_x = i % 32;
         let tile_y = i / 32;
-        show_tile(chr_rom, &mut frame, 0, tile_x, tile_y, i);
+        show_tile(chr_rom, &mut frame, 0, tile_x, tile_y, i % 512);
     }
     frame
 }
 
 pub fn show_tile(chr_rom: &Vec<u8>, frame: &mut Frame, bank: u16, tile_x:usize, tile_y:usize, tile_idx: usize) {
     assert!(bank <= 1);
-    if tile_idx < chr_rom.len() {
-        return;
-    }
 
     let bank = (bank * 0x1000) as usize;
 
